@@ -1,0 +1,6 @@
+# Obsidian (volatile editor/workspace state)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# OS
+.DS_Store
