@@ -1,0 +1,16 @@
+{
+  "name": "strategy-simulator",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "체스·장기 혼종 + 테트리스 낙하 + 리듬 디펜스 게임",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -2,5 +2,10 @@
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
 
+# Node / build
+node_modules/
+dist/
+*.tsbuildinfo
+
 # OS
 .DS_Store
