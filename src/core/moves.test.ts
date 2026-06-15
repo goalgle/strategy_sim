@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { makePalace, pieceAt } from './board';
 import { legalMoves } from './pieces/registry';
 import { applyMove, canMoveTo } from './rules';
-import { createStandardGame, Placer } from './setup';
+import { createStandardGame, emptyGame, Placer } from './setup';
 import type { Coord, GameState, PieceKind, Side } from './types';
 
 type Spec = [PieceKind, Side, number, number]; // kind, side, col, row
@@ -15,7 +15,7 @@ function makeGame(
 ): GameState {
   const placer = new Placer();
   for (const [k, s, c, r] of specs) placer.place(k, s, c, r);
-  return { board: { cols, rows, palaces }, pieces: placer.build() };
+  return { ...emptyGame(cols, rows, palaces), pieces: placer.build() };
 }
 
 function movesAt(g: GameState, col: number, row: number): Coord[] {

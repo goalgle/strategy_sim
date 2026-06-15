@@ -58,10 +58,37 @@ export interface Board {
   palaces: PalaceDef[];
 }
 
-/** 구현 1단계의 최소 게임 상태(이후 단계에서 hp·hourglass·rhythm 등이 추가됨) */
+/** 씨드 RNG 상태(결정론 위생). rng.ts가 이 타입으로 동작. */
+export interface RngState {
+  seed: number;
+  counter: number;
+}
+
+/** 모래시계 — 실시간 압박. 충전→이벤트(하강)→리셋 사이클. 리듬과 무관. */
+export interface Hourglass {
+  /** 가득 차는 데 필요한 양(ms 기준) */
+  capacity: number;
+  /** 0..capacity */
+  progress: number;
+  /** 몇 번째 뒤집힘 — 사이클 카운터(난이도·스폰 구동) */
+  cycle: number;
+  /** 정지 기능(액션 #2) 발동 시 true */
+  paused: boolean;
+}
+
+export type GameStatus = 'playing' | 'over';
+export type OverReason = 'hp' | 'royal';
+
+/** 게임 상태. 2단계에서 hp·hourglass·rng·status 추가(이후 rhythm·turn 등 확장). */
 export interface GameState {
   board: Board;
   pieces: Piece[];
+  hp: number;
+  maxHp: number;
+  hourglass: Hourglass;
+  rng: RngState;
+  status: GameStatus;
+  overReason?: OverReason;
 }
 
 /** 말 종류별 합법 도착 좌표 생성 함수 */

@@ -1,6 +1,12 @@
 // 초기 배치 — 표준 진형(하단 장기 / 상단 체스 2줄) + 빈 보드/배치 헬퍼(테스트·이후 단계용).
 // 설계 근거: doc/concept.md "초기 배치 / 진형", doc/architecture.md "스크립트 → setup".
 import { makePalace } from './board';
+import {
+  DEFAULT_HOURGLASS_CAPACITY_MS,
+  DEFAULT_MAX_HP,
+  DEFAULT_SEED,
+} from './constants';
+import { makeRng } from './rng';
 import type { Board, Family, GameState, Piece, PieceKind, Side } from './types';
 
 const CHESS_KINDS = new Set<PieceKind>([
@@ -45,12 +51,45 @@ export class Placer {
   }
 }
 
-/** 궁성 없는(또는 지정 궁성) 빈 게임 — 테스트·실험용. */
-export function emptyGame(cols: number, rows: number, palaces: Board['palaces'] = []): GameState {
-  return { board: { cols, rows, palaces }, pieces: [] };
+export interface GameInit {
+  /** 결정론 시드(기본 DEFAULT_SEED). */
+  seed?: number;
+  /** 최대 HP(기본 DEFAULT_MAX_HP). */
+  maxHp?: number;
+  /** 모래시계 1회 충전 시간 ms(기본 DEFAULT_HOURGLASS_CAPACITY_MS). */
+  capacityMs?: number;
 }
 
-export interface StandardOptions {
+/** 공통 시간·HP·RNG·상태 기본값으로 빈 GameState 골격을 만든다. */
+function baseState(board: Board, init: GameInit): GameState {
+  const maxHp = init.maxHp ?? DEFAULT_MAX_HP;
+  return {
+    board,
+    pieces: [],
+    hp: maxHp,
+    maxHp,
+    hourglass: {
+      capacity: init.capacityMs ?? DEFAULT_HOURGLASS_CAPACITY_MS,
+      progress: 0,
+      cycle: 0,
+      paused: false,
+    },
+    rng: makeRng(init.seed ?? DEFAULT_SEED),
+    status: 'playing',
+  };
+}
+
+/** 궁성 없는(또는 지정 궁성) 빈 게임 — 테스트·실험용. */
+export function emptyGame(
+  cols: number,
+  rows: number,
+  palaces: Board['palaces'] = [],
+  init: GameInit = {},
+): GameState {
+  return baseState({ cols, rows, palaces }, init);
+}
+
+export interface StandardOptions extends GameInit {
   /** 두 진영 사이 완충 행 수(기본 10). */
   gap?: number;
   /** 보드 열 수(기본 9 = 장기판). */
@@ -70,6 +109,7 @@ export function createStandardGame(opts: StandardOptions = {}): GameState {
 
   // 적(체스)은 궁성 없음 — 플레이어 궁성만 보드 메타데이터에 포함.
   const board: Board = { cols, rows, palaces: [makePalace('player', cols, rows)] };
+  const base = baseState(board, opts);
 
   const placer = new Placer();
   const back = rows - 1; // 장기 맨 뒷줄
@@ -109,5 +149,5 @@ export function createStandardGame(opts: StandardOptions = {}): GameState {
   chessBack.forEach((kind, col) => placer.place(kind, 'enemy', col, 0));
   for (let col = 0; col < 8; col++) placer.place('pawn', 'enemy', col, 1);
 
-  return { board, pieces: placer.build() };
+  return { ...base, pieces: placer.build() };
 }

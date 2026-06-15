@@ -2,10 +2,9 @@
 // 순수·정수 연산 — 같은 (seed, counter) → 같은 값. counter 진행으로 위치 주소화 가능.
 // 설계 근거: doc/architecture.md "데일리 시드 + 리플레이 → 시드 RNG"
 
-export interface RngState {
-  seed: number;
-  counter: number;
-}
+import type { RngState } from './types';
+
+export type { RngState };
 
 export function makeRng(seed: number): RngState {
   return { seed: seed >>> 0, counter: 0 };
