@@ -7,5 +7,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Playwright / demo capture artifacts
+.playwright-mcp/
+/board-*.png
+
 # OS
 .DS_Store
