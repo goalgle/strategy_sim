@@ -9,7 +9,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "demo": "tsx src/demo/show.ts",
-    "demo:descent": "tsx src/demo/descent.ts"
+    "demo:descent": "tsx src/demo/descent.ts",
+    "demo:play": "tsx src/demo/play.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

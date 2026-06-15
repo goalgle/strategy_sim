@@ -8,5 +8,7 @@ export * from './rules';
 export * from './events';
 export * from './descent';
 export * from './spawn';
+export * from './selection';
+export * from './intent';
 export * from './tick';
 export * from './setup';

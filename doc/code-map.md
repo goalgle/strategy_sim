@@ -3,8 +3,9 @@
 > 짝 문서: [concept.md](./concept.md)(기획) · [architecture.md](./architecture.md)(설계).
 > 이 문서는 **구현된 파일이 무엇을 하는가**를 추적한다. 빌드 단계가 진행될 때마다 갱신.
 
-## 현재 단계: 빌드 2 (모래시계 · 하강 · 스폰 · 충돌) ✅
-(빌드 1: 보드 + 합법수 + 잡기 ✅)
+## 현재 단계: 빌드 3a (입력/Intent — 헤드리스) ✅
+(빌드 1: 보드 + 합법수 + 잡기 ✅ · 빌드 2: 모래시계·하강·스폰·충돌 ✅)
+다음: 빌드 3b — PixiJS 렌더(브라우저). 현재까진 헤드리스 검증.
 
 ```
 src/
@@ -19,16 +20,19 @@ src/
       janggi.ts         장기 7종 합법수
       registry.ts       RULES 레지스트리(종류→합법수)
     rules.ts            능동 잡기(applyMove)
-    events.ts           GameEvent 유니온(2단계 범위)
+    events.ts           GameEvent 유니온(+ 입력/이동 이벤트)
     descent.ts          일제 하강 해소(위쪽 승·맨아래 우선)
     spawn.ts            시드 기반 웨이브 스폰
-    tick.ts             코어 진입점(모래시계→하강→스폰)
-    setup.ts            표준 진형 + 배치 헬퍼(+ HP·시드 초기화)
+    selection.ts        하강 후 진행 중 selection 재조정
+    intent.ts           이동 3단계 인텐트 처리(select/preview/confirm/cancel)
+    tick.ts             코어 진입점(모래시계→하강→스폰→재조정→인텐트)
+    setup.ts            표준 진형 + 배치 헬퍼(+ HP·시드·턴 초기화)
     index.ts            코어 공개 API(배럴)
   demo/
     render.ts           ASCII 보드 렌더러(콘솔 확인용)
     show.ts             합법수 데모 (npm run demo)
     descent.ts          하강·충돌·HP 데모 (npm run demo:descent)
+    play.ts             입력+턴+하강 통합 데모 (npm run demo:play)
 ```
 
 ---
@@ -37,8 +41,8 @@ src/
 
 ### `src/core/types.ts`
 - **역할**: 모든 모듈이 공유하는 데이터 모델.
-- **주요 타입**: `Coord`, `Side`, `Family`, `PieceKind`(13종), `Piece`, `PalaceDef`, `Board`, `RngState`, `Hourglass`, `GameStatus`/`OverReason`, `GameState`, `MoveGen`.
-- **메모**: `GameState`에 `hp`·`maxHp`·`hourglass`·`rng`·`status` 포함(2단계). `rhythm`·`turn`·`selection`은 이후 단계.
+- **주요 타입**: `Coord`, `Side`, `Family`, `PieceKind`(13종), `Piece`, `PalaceDef`, `Board`, `RngState`, `Hourglass`, `GameStatus`/`OverReason`, `Selection`, `Intent`, `GameState`, `MoveGen`.
+- **메모**: `GameState`에 `hp`·`hourglass`·`rng`·`status`·`turn`·`selection` 포함. `rhythm`·`score`는 이후 단계.
 
 ### `src/core/constants.ts`
 - **역할**: 게임 상수(밸런싱 값은 [미정]).
@@ -77,8 +81,8 @@ src/
 - **export**: `canMoveTo(piece, to, state)`, `applyMove(state, pieceId, to) → { state, captured? }`.
 
 ### `src/core/events.ts`
-- **역할**: `tick`이 반환하는 `GameEvent` 유니온(2단계 범위).
-- **이벤트**: `cycle`, `descended`, `captured`(mode active/descent), `bottomReached`, `spawned`, `hpChanged`, `gameOver`.
+- **역할**: `tick`이 반환하는 `GameEvent` 유니온.
+- **이벤트**: `selected`/`previewed`/`canceled`/`moved`/`reconciled`/`turnChanged`, `captured`(active/descent), `cycle`/`descended`/`bottomReached`/`spawned`, `hpChanged`/`gameOver`.
 
 ### `src/core/descent.ts`
 - **역할**: 일제 하강 해소 — 적 전체 `row+1`.
@@ -90,10 +94,21 @@ src/
 - **export**: `spawnWave(state, cycle) → { state, events }`.
 - **메모**: 2단계 최소 구현(최상단 빈 열에 적 1개). 구성·난이도 [미정].
 
+### `src/core/selection.ts`
+- **역할**: 하강/스폰으로 보드가 바뀐 뒤 진행 중 `selection` 보정.
+- **export**: `reconcileSelection(state) → { state, events }`.
+- **규칙**: ① 선택 말 사라짐→해제, ② 합법수 재계산, ③ preview가 새 보드에서 불법이면 preview만 폐기.
+
+### `src/core/intent.ts`
+- **역할**: 이동 3단계 인텐트 처리(플레이어·AI 공용 통로).
+- **export**: `applyIntent(state, intent) → { state, events }`.
+- **규칙**: `select`(현재 차례 말만), `preview`(합법 칸만, 보드 불변), `confirm`(능동 잡기=이동측 승, royal 잡으면 게임오버, 턴 전환), `cancel`(preview 되돌림/선택 해제). `special`은 이후 단계.
+
 ### `src/core/tick.ts`
-- **역할**: 코어 단일 진입점(2단계: 모래시계 전진 → 하강 → 스폰).
-- **export**: `tick(state, { dt }) → { state, events }`. 순수·결정론, `dt` 크면 다중 하강 누적, 게임오버 후 무동작.
-- **메모**: 인텐트(이동)·리듬·점수·턴은 이후 단계에서 합류.
+- **역할**: 코어 단일 진입점.
+- **export**: `tick(state, { dt, intents? }) → { state, events }`.
+- **파이프라인**: 모래시계 전진 → 하강 → 스폰 → (하강 시) selection 재조정 → 인텐트 처리. 순수·결정론, `dt` 크면 다중 하강 누적, 게임오버 후 무동작.
+- **메모**: 리듬·점수는 이후 단계에서 합류.
 
 ### `src/core/setup.ts`
 - **역할**: 초기 배치 + 시간·HP·RNG·상태 초기화.
@@ -113,10 +128,14 @@ src/
 ### `src/demo/descent.ts`
 - **역할**: 하강 데모 — 작은 보드에서 사이클별 하강·충돌·맨아래 도달·HP·스폰 출력. `npm run demo:descent`.
 
+### `src/demo/play.ts`
+- **역할**: 통합 데모 — 이동 3단계 인텐트 + 능동 잡기 + 턴 교대 + 실시간 하강 섞임(적 수는 스크립트). `npm run demo:play`.
+
 ---
 
 ## 테스트
 - `src/core/rng.test.ts` — RNG 결정론·순수성(4개).
 - `src/core/moves.test.ts` — 합법수·잡기·표준 진형(18개). 까다로운 장기 규칙·궁성 제약 정조준.
 - `src/core/tick.test.ts` — 모래시계·하강·충돌·맨아래 우선·HP·게임오버·스폰 결정론(12개).
-- 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `npm run demo:descent`.
+- `src/core/intent.test.ts` — 이동 3단계·턴 교대·royal 즉사·selection 재조정(12개).
+- 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`.

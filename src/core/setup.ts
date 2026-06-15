@@ -76,6 +76,7 @@ function baseState(board: Board, init: GameInit): GameState {
     },
     rng: makeRng(init.seed ?? DEFAULT_SEED),
     status: 'playing',
+    turn: 'player', // 플레이어 선공
   };
 }
 

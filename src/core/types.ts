@@ -79,7 +79,24 @@ export interface Hourglass {
 export type GameStatus = 'playing' | 'over';
 export type OverReason = 'hp' | 'royal';
 
-/** 게임 상태. 2단계에서 hp·hourglass·rng·status 추가(이후 rhythm·turn 등 확장). */
+/** 진행 중인 한 번의 이동(선택 → 가상이동 → 확정/취소). 확정 전까지 보드 불변. */
+export interface Selection {
+  pieceId: string;
+  /** 합법 도착 후보지 */
+  legal: Coord[];
+  /** 가상 이동 위치(미확정). 없으면 '선택만 된' 상태. */
+  preview?: Coord;
+}
+
+/** 코어로 들어가는 단일 입력 통로(플레이어·AI 공용). */
+export type Intent =
+  | { t: 'select'; pieceId: string }
+  | { t: 'preview'; to: Coord } // 가상 이동
+  | { t: 'confirm' } // 확정
+  | { t: 'cancel' } // 우클릭 취소
+  | { t: 'special'; action: number; payload?: unknown }; // 특수기능(#2~#5, 이후 단계)
+
+/** 게임 상태. 3단계에서 turn·selection 추가(이후 rhythm·score 등 확장). */
 export interface GameState {
   board: Board;
   pieces: Piece[];
@@ -89,6 +106,10 @@ export interface GameState {
   rng: RngState;
   status: GameStatus;
   overReason?: OverReason;
+  /** 현재 수를 둘 차례 */
+  turn: Side;
+  /** 진행 중인 이동(없으면 대기) */
+  selection?: Selection;
 }
 
 /** 말 종류별 합법 도착 좌표 생성 함수 */
