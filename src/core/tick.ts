@@ -24,7 +24,8 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
   if (state.status === 'over') return { state, events: [] };
 
   const events: GameEvent[] = [];
-  let s = state;
+  // 리듬 시계 전진(모래시계 정지와 무관하게 흐름).
+  let s: GameState = { ...state, timeMs: state.timeMs + input.dt };
 
   // 2~4. 모래시계 전진 → 하강 → 스폰
   let descended = false;

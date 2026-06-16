@@ -4,7 +4,9 @@
 import { eq } from './board';
 import type { GameEvent } from './events';
 import { legalMoves } from './pieces/registry';
+import { judgeAt, RHYTHM_SCORE } from './rhythm';
 import { applyMove } from './rules';
+import { captureScore } from './scoring';
 import type { GameState, GameStatus, Intent, OverReason, Side } from './types';
 
 const other = (s: Side): Side => (s === 'player' ? 'enemy' : 'player');
@@ -42,11 +44,25 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
 
       const from = { ...mover.at };
       const to = sel.preview;
+      const isPlayer = mover.side === 'player';
       const res = applyMove(state, sel.pieceId, to);
       const events: GameEvent[] = [{ t: 'moved', pieceId: sel.pieceId, from, to }];
 
       let status: GameStatus = state.status;
       let overReason: OverReason | undefined = state.overReason;
+      let score = state.score;
+
+      // 점수·리듬은 플레이어 전용. AI는 항상 just 취급·무점수(판정 계산 안 함).
+      if (isPlayer) {
+        const j = judgeAt(state.timeMs, state.rhythm);
+        events.push({ t: 'rhythm', judge: j });
+        const rScore = RHYTHM_SCORE[j];
+        if (rScore > 0) {
+          score += rScore;
+          events.push({ t: 'scored', total: score, delta: rScore, reason: 'rhythm' });
+        }
+      }
+
       if (res.captured !== undefined) {
         events.push({
           t: 'captured',
@@ -56,6 +72,11 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
           at: to,
           mode: 'active',
         });
+        if (isPlayer) {
+          const cScore = captureScore(res.captured.kind);
+          score += cScore;
+          events.push({ t: 'scored', total: score, delta: cScore, reason: 'capture' });
+        }
         if (res.captured.isRoyal) {
           status = 'over';
           overReason = 'royal';
@@ -67,7 +88,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
       if (status !== 'over') events.push({ t: 'turnChanged', turn: nextTurn });
 
       return {
-        state: { ...res.state, selection: undefined, turn: nextTurn, status, overReason },
+        state: { ...res.state, selection: undefined, turn: nextTurn, status, overReason, score },
         events,
       };
     }

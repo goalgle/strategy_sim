@@ -3,9 +3,12 @@
 import { makePalace } from './board';
 import {
   DAMAGE_PER_REACH,
+  DEFAULT_BPM,
   DEFAULT_HOURGLASS_CAPACITY_MS,
   DEFAULT_MAX_HP,
   DEFAULT_SEED,
+  RHYTHM_JUST_MS,
+  RHYTHM_NEAR_MS,
 } from './constants';
 import { makeRng } from './rng';
 import type { Board, Family, GameState, Piece, PieceKind, Side } from './types';
@@ -61,6 +64,12 @@ export interface GameInit {
   capacityMs?: number;
   /** 맨 아래 도달 1회당 HP 감소량(기본 DAMAGE_PER_REACH). */
   damagePerReach?: number;
+  /** 리듬: BPM(기본 DEFAULT_BPM). */
+  bpm?: number;
+  /** 리듬: Just 허용 오차 ms(기본 RHYTHM_JUST_MS). */
+  justWindowMs?: number;
+  /** 리듬: 근접 허용 오차 ms(기본 RHYTHM_NEAR_MS). */
+  nearWindowMs?: number;
 }
 
 /** 공통 시간·HP·RNG·상태 기본값으로 빈 GameState 골격을 만든다. */
@@ -81,6 +90,13 @@ function baseState(board: Board, init: GameInit): GameState {
     status: 'playing',
     damagePerReach: init.damagePerReach ?? DAMAGE_PER_REACH,
     turn: 'player', // 플레이어 선공
+    timeMs: 0,
+    score: 0,
+    rhythm: {
+      bpm: init.bpm ?? DEFAULT_BPM,
+      justWindowMs: init.justWindowMs ?? RHYTHM_JUST_MS,
+      nearWindowMs: init.nearWindowMs ?? RHYTHM_NEAR_MS,
+    },
   };
 }
 

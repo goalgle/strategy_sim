@@ -14,12 +14,14 @@ const AI_THINK_MS = diff.ai.thinkMs; // 적 수 연출 지연
 
 const mount = document.getElementById('app')!;
 
-// 난이도 설정에서 유속·HP·도달 피해를 가져옴(완충 6행 → rows=12).
+// 난이도 설정에서 유속·HP·도달 피해·리듬 판정 윈도우를 가져옴(완충 6행 → rows=12).
 let state: GameState = createStandardGame({
   gap: 6,
   capacityMs: diff.hourglassCapacityMs,
   maxHp: diff.maxHp,
   damagePerReach: diff.damagePerReach,
+  justWindowMs: diff.rhythm.justWindowMs,
+  nearWindowMs: diff.rhythm.nearWindowMs,
 });
 
 const view = new BoardView();
@@ -82,7 +84,9 @@ view.app.ticker.add((ticker) => {
   }
   const intents = queue.splice(0, queue.length);
   if (dt > 0 || intents.length > 0) {
-    state = tick(state, { dt, intents }).state;
+    const r = tick(state, { dt, intents });
+    state = r.state;
+    for (const e of r.events) if (e.t === 'rhythm') view.lastJudge = e.judge; // HUD 판정 표시
   }
 
   // 적 차례면 잠시 뒤 AI가 1수(플레이어는 적 말 조작 불가 → 사실상 플레이어 vs AI)

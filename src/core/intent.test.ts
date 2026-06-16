@@ -132,6 +132,54 @@ describe('이동 3단계 인텐트', () => {
   });
 });
 
+describe('점수 (플레이어 전용, 리듬+처치)', () => {
+  it('플레이어 확정: 리듬 점수(timeMs=0 → just=3)', () => {
+    const g = game(5, 5, [['rook', 'player', 2, 2]]); // timeMs 0 = 정각 → just
+    const s = run(g, [
+      { t: 'select', pieceId: 'p-rook-0' },
+      { t: 'preview', to: { col: 2, row: 0 } },
+      { t: 'confirm' },
+    ]);
+    expect(s.score).toBe(3); // 리듬 just
+  });
+
+  it('플레이어 확정 + 잡기: 리듬 + 처치 합산(just3 + 폰1 = 4)', () => {
+    const g = game(5, 5, [
+      ['rook', 'player', 2, 2],
+      ['pawn', 'enemy', 2, 0],
+    ]);
+    const res = tick(g, {
+      dt: 0,
+      intents: [
+        { t: 'select', pieceId: 'p-rook-0' },
+        { t: 'preview', to: { col: 2, row: 0 } },
+        { t: 'confirm' },
+      ],
+    });
+    expect(res.state.score).toBe(4);
+    expect(res.events.some((e) => e.t === 'rhythm' && e.judge === 'just')).toBe(true);
+    expect(res.events.some((e) => e.t === 'scored' && e.reason === 'capture')).toBe(true);
+  });
+
+  it('적(AI) 확정은 점수 없음', () => {
+    const g = game(
+      5,
+      5,
+      [
+        ['rook', 'enemy', 2, 2],
+        ['pawn', 'player', 2, 0],
+      ],
+      'enemy',
+    );
+    const s = run(g, [
+      { t: 'select', pieceId: 'e-rook-0' },
+      { t: 'preview', to: { col: 2, row: 0 } },
+      { t: 'confirm' },
+    ]);
+    expect(s.score).toBe(0); // 적이 내 폰을 잡아도 내 점수는 그대로
+  });
+});
+
 describe('하강 ↔ 진행 중 selection 재조정', () => {
   it('하강으로 preview가 불법이 되면 preview만 폐기', () => {
     // 룩(2,5), 적 폰(2,1). 룩이 (2,1) 잡기를 preview → 하강으로 폰이 (2,2)로,

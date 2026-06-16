@@ -1,7 +1,7 @@
 // tick이 반환하는 이벤트(직접 emit 안 함 → 순수성 유지). 렌더·SFX·UI가 구독.
 // 2단계 범위의 이벤트만 정의 — 이후 단계(이동/리듬/점수)에서 확장.
 // 설계 근거: doc/architecture.md "이벤트 목록 (GameEvent)".
-import type { Coord, OverReason, PieceKind, Side } from './types';
+import type { Coord, OverReason, PieceKind, RhythmJudge, Side } from './types';
 
 export type GameEvent =
   // 입력/이동 3단계
@@ -25,6 +25,9 @@ export type GameEvent =
   | { t: 'descended'; movedIds: string[] } // 적 일제 하강
   | { t: 'bottomReached'; pieceId: string; damage: number } // 코어 침범(최우선)
   | { t: 'spawned'; pieceIds: string[]; cycle: number }
+  // 리듬/점수(플레이어 전용)
+  | { t: 'rhythm'; judge: RhythmJudge }
+  | { t: 'scored'; total: number; delta: number; reason: 'capture' | 'rhythm' }
   // 자원/진행
   | { t: 'hpChanged'; hp: number; delta: number }
   | { t: 'gameOver'; reason: OverReason };

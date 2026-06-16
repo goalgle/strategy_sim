@@ -2,14 +2,15 @@
 // 그리드↔교차 토글은 바닥 라인만 바꾼다(말 위치는 동일 좌표).
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import { eq } from '../core/board';
-import type { Coord, GameState, PieceKind } from '../core/types';
+import { beatPhase01 } from '../core/rhythm';
+import type { Coord, GameState, PieceKind, RhythmJudge } from '../core/types';
 
 export type FloorMode = 'grid' | 'intersection';
 
 const CELL = 40;
 const BAR_H = 12; // 모래시계 진행바
 const PAD = 6;
-const HUD_H = 28;
+const HUD_H = 46;
 
 const GLYPH: Record<PieceKind, string> = {
   general: '將',
@@ -51,6 +52,8 @@ export class BoardView {
   private cols = 0;
   private rows = 0;
   floorMode: FloorMode = 'intersection';
+  /** 마지막 리듬 판정(HUD 표시용). main이 이벤트로 갱신. */
+  lastJudge: RhythmJudge | null = null;
 
   async init(mount: HTMLElement, state: GameState): Promise<void> {
     this.cols = state.board.cols;
@@ -147,9 +150,15 @@ export class BoardView {
     const g = this.bar;
     g.clear();
     const w = this.cols * CELL;
+    // 모래시계 진행바
     g.rect(0, 0, w, BAR_H).fill(0x202544);
     const frac = Math.min(1, state.hourglass.progress / state.hourglass.capacity);
     g.rect(0, 0, w * frac, BAR_H).fill({ color: state.hourglass.paused ? 0x888888 : COL.bar });
+    // 박자 펄스(우상단): 정각에 가장 크고 밝게 → 플레이어가 타이밍 맞추는 기준
+    const phase = beatPhase01(state.timeMs, state.rhythm.bpm); // 0=정각
+    const r = 3 + (1 - phase) * (BAR_H * 0.5);
+    const alpha = 0.3 + (1 - phase) * 0.7;
+    g.circle(w - BAR_H, BAR_H / 2, r).fill({ color: COL.preview, alpha });
   }
 
   private drawPieces(state: GameState): void {
@@ -175,7 +184,9 @@ export class BoardView {
   private drawHud(state: GameState): void {
     const turn = state.turn === 'player' ? '플레이어' : '적';
     const paused = state.hourglass.paused ? ' ⏸' : '';
+    const judge = this.lastJudge ? `  ·  ${this.lastJudge.toUpperCase()}` : '';
     this.hud.text =
+      `점수 ${state.score}${judge}\n` +
       `cycle ${state.hourglass.cycle}  ·  HP ${state.hp}/${state.maxHp}  ·  ` +
       `턴:${turn}  ·  ${state.status}  ·  바닥:${this.floorMode}${paused}`;
   }

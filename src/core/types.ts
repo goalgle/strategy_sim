@@ -79,6 +79,16 @@ export interface Hourglass {
 export type GameStatus = 'playing' | 'over';
 export type OverReason = 'hp' | 'royal';
 
+/** 입력 박자 판정(플레이어 전용). AI는 항상 just로 취급, 판정 계산 안 함. */
+export type RhythmJudge = 'just' | 'near' | 'miss';
+
+/** 리듬 설정. bpm은 음악, 판정 윈도우는 난이도. */
+export interface RhythmConfig {
+  bpm: number;
+  justWindowMs: number;
+  nearWindowMs: number;
+}
+
 /** 진행 중인 한 번의 이동(선택 → 가상이동 → 확정/취소). 확정 전까지 보드 불변. */
 export interface Selection {
   pieceId: string;
@@ -112,6 +122,12 @@ export interface GameState {
   turn: Side;
   /** 진행 중인 이동(없으면 대기) */
   selection?: Selection;
+  /** 누적 사용된 sim 시간 ms — 리듬 시계(모래시계와 별개). */
+  timeMs: number;
+  /** 플레이어 점수(처치 + 리듬). */
+  score: number;
+  /** 리듬 설정. */
+  rhythm: RhythmConfig;
 }
 
 /** 말 종류별 합법 도착 좌표 생성 함수 */

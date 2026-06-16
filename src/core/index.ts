@@ -5,6 +5,8 @@ export * from './rng';
 export * from './board';
 export * from './pieces/registry';
 export * from './rules';
+export * from './rhythm';
+export * from './scoring';
 export * from './events';
 export * from './descent';
 export * from './spawn';

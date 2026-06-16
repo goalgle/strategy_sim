@@ -21,7 +21,7 @@ export interface DifficultyConfig {
   damagePerReach: number;
 
   // ── 리듬 판정(플레이어 전용) ──
-  /** [pending: 빌드4] Just/근접 허용 오차 ms. 좁을수록 어려움. */
+  /** [wired] Just/근접 허용 오차 ms. 좁을수록 어려움. */
   rhythm: { justWindowMs: number; nearWindowMs: number };
 
   // ── AI ──

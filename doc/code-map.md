@@ -3,10 +3,10 @@
 > 짝 문서: [concept.md](./concept.md)(기획) · [architecture.md](./architecture.md)(설계).
 > 이 문서는 **구현된 파일이 무엇을 하는가**를 추적한다. 빌드 단계가 진행될 때마다 갱신.
 
-## 현재 단계: 빌드 5 (AI MVP — 플레이어 vs AI) ✅
-(빌드 1 보드+합법수+잡기 · 2 모래시계·하강 · 3a 입력/Intent · 3b PixiJS 렌더 ✅)
-적이 휴리스틱으로 매 턴 1수(잡기 우선·아니면 전진). 브라우저는 이제 플레이어 vs AI.
-다음: 빌드 4 — 리듬+점수.
+## 현재 단계: 빌드 4 (리듬 + 점수) ✅
+(빌드 1 보드+합법수 · 2 모래시계·하강 · 3a 입력 · 3b 렌더 · 5 AI MVP ✅)
+플레이어 확정 수에 박자 판정(Just/근접/빗나감) + 처치 점수 합산. AI는 항상 just·무점수.
+HUD에 점수·판정·박자 펄스 표시. 빌드 순서상 주요 시스템은 거의 채워짐.
 
 ### AI
 ```
@@ -48,7 +48,9 @@ src/
       janggi.ts         장기 7종 합법수
       registry.ts       RULES 레지스트리(종류→합법수)
     rules.ts            능동 잡기(applyMove)
-    events.ts           GameEvent 유니온(+ 입력/이동 이벤트)
+    events.ts           GameEvent 유니온(+ 입력/이동/리듬/점수 이벤트)
+    rhythm.ts           BPM 판정(judgeAt) + RHYTHM_SCORE + 박자 펄스
+    scoring.ts          처치 점수(captureScore)
     descent.ts          일제 하강 해소(위쪽 승·맨아래 우선)
     spawn.ts            시드 기반 웨이브 스폰
     selection.ts        하강 후 진행 중 selection 재조정
@@ -110,7 +112,15 @@ src/
 
 ### `src/core/events.ts`
 - **역할**: `tick`이 반환하는 `GameEvent` 유니온.
-- **이벤트**: `selected`/`previewed`/`canceled`/`moved`/`reconciled`/`turnChanged`, `captured`(active/descent), `cycle`/`descended`/`bottomReached`/`spawned`, `hpChanged`/`gameOver`.
+- **이벤트**: `selected`/`previewed`/`canceled`/`moved`/`reconciled`/`turnChanged`, `captured`(active/descent), `cycle`/`descended`/`bottomReached`/`spawned`, `rhythm`/`scored`, `hpChanged`/`gameOver`.
+
+### `src/core/rhythm.ts`
+- **역할**: 리듬 판정 — `state.timeMs`(sim 시계) 기준이라 결정론.
+- **export**: `judgeAt(timeMs, rhythm)`(just/near/miss), `RHYTHM_SCORE`(3/2/0), `beatPeriodMs`, `beatPhase01`(박자 펄스용).
+
+### `src/core/scoring.ts`
+- **역할**: 처치 점수 — 폰1·퀸5·킹/장6·그 외 3.
+- **export**: `captureScore(kind)`.
 
 ### `src/core/descent.ts`
 - **역할**: 일제 하강 해소 — 적 전체 `row+1`.
@@ -131,6 +141,7 @@ src/
 - **역할**: 이동 3단계 인텐트 처리(플레이어·AI 공용 통로).
 - **export**: `applyIntent(state, intent) → { state, events }`.
 - **규칙**: `select`(현재 차례 말만), `preview`(합법 칸만, 보드 불변), `confirm`(능동 잡기=이동측 승, royal 잡으면 게임오버, 턴 전환), `cancel`(preview 되돌림/선택 해제). `special`은 이후 단계.
+- **점수(빌드4)**: `confirm`이 **플레이어**일 때만 리듬 판정(timeMs 기준)+처치 점수를 합산. AI는 항상 just 취급·무점수.
 
 ### `src/core/tick.ts`
 - **역할**: 코어 단일 진입점.
@@ -179,5 +190,6 @@ src/
 - `src/core/moves.test.ts` — 합법수·잡기·표준 진형(18개). 까다로운 장기 규칙·궁성 제약 정조준.
 - `src/core/tick.test.ts` — 모래시계·하강·충돌·맨아래 우선·HP·게임오버·스폰 결정론(12개).
 - `src/core/intent.test.ts` — 이동 3단계·턴 교대·royal 즉사·selection 재조정(12개).
+- `src/core/rhythm.test.ts` — 박자 판정 윈도우·점수·처치 점수(6개).
 - `src/ai/heuristic.test.ts` — 잡기 우선·가치 선호·전진·턴/패스·royal·결정론(7개).
 - 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.
