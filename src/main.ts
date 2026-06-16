@@ -1,6 +1,7 @@
 // 브라우저 엔트리: 코어 GameState를 PixiJS로 렌더 + 마우스 입력을 Intent로 변환 + rAF 루프가 tick 구동.
 // 적 수는 AI(5단계) 전까지 핫시트(사람이 양측을 둠).
 import { aiTakeTurn } from './ai/heuristic';
+import { ACTIVE_DIFFICULTY, DIFFICULTIES } from './config/difficulty';
 import { eq } from './core/board';
 import { STEP_MS } from './core/constants';
 import { createStandardGame } from './core/setup';
@@ -8,12 +9,18 @@ import { tick } from './core/tick';
 import type { GameState, Intent } from './core/types';
 import { BoardView } from './render/pixiBoard';
 
-const AI_THINK_MS = 450; // 적 수를 눈에 보이게 하는 연출 지연
+const diff = DIFFICULTIES[ACTIVE_DIFFICULTY];
+const AI_THINK_MS = diff.ai.thinkMs; // 적 수 연출 지연
 
 const mount = document.getElementById('app')!;
 
-// 데모용: 완충 6행(rows=12), 모래시계 4초.
-let state: GameState = createStandardGame({ gap: 6, capacityMs: 4000 });
+// 난이도 설정에서 유속·HP·도달 피해를 가져옴(완충 6행 → rows=12).
+let state: GameState = createStandardGame({
+  gap: 6,
+  capacityMs: diff.hourglassCapacityMs,
+  maxHp: diff.maxHp,
+  damagePerReach: diff.damagePerReach,
+});
 
 const view = new BoardView();
 await view.init(mount, state);

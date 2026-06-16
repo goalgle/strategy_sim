@@ -2,6 +2,7 @@
 // 설계 근거: doc/concept.md "초기 배치 / 진형", doc/architecture.md "스크립트 → setup".
 import { makePalace } from './board';
 import {
+  DAMAGE_PER_REACH,
   DEFAULT_HOURGLASS_CAPACITY_MS,
   DEFAULT_MAX_HP,
   DEFAULT_SEED,
@@ -58,6 +59,8 @@ export interface GameInit {
   maxHp?: number;
   /** 모래시계 1회 충전 시간 ms(기본 DEFAULT_HOURGLASS_CAPACITY_MS). */
   capacityMs?: number;
+  /** 맨 아래 도달 1회당 HP 감소량(기본 DAMAGE_PER_REACH). */
+  damagePerReach?: number;
 }
 
 /** 공통 시간·HP·RNG·상태 기본값으로 빈 GameState 골격을 만든다. */
@@ -76,6 +79,7 @@ function baseState(board: Board, init: GameInit): GameState {
     },
     rng: makeRng(init.seed ?? DEFAULT_SEED),
     status: 'playing',
+    damagePerReach: init.damagePerReach ?? DAMAGE_PER_REACH,
     turn: 'player', // 플레이어 선공
   };
 }

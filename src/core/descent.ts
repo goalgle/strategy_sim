@@ -1,12 +1,12 @@
 // 일제 하강 해소: 적 말 전체 row+1. "맨 아래 도달 우선" + "하강 충돌은 위쪽 승".
 // 설계 근거: doc/architecture.md "tick 파이프라인 → 하강 해소".
-import { DAMAGE_PER_REACH } from './constants';
 import type { GameEvent } from './events';
 import type { GameState, GameStatus, OverReason, Piece } from './types';
 
 export function applyDescent(state: GameState): { state: GameState; events: GameEvent[] } {
   const events: GameEvent[] = [];
   const rows = state.board.rows;
+  const damage = state.damagePerReach;
 
   // 작업 사본(위치 변경·제거를 안전하게)
   let pieces: Piece[] = state.pieces.map((p) => ({ ...p, at: { ...p.at } }));
@@ -35,9 +35,9 @@ export function applyDescent(state: GameState): { state: GameState; events: Game
     // 1) 맨 아래 칸 도달 — 최우선(잡기보다 먼저). 적 제거 + HP 감소.
     if (newRow >= rows - 1) {
       pieces = pieces.filter((p) => p.id !== id);
-      hp -= DAMAGE_PER_REACH;
-      events.push({ t: 'bottomReached', pieceId: id, damage: DAMAGE_PER_REACH });
-      events.push({ t: 'hpChanged', hp, delta: -DAMAGE_PER_REACH });
+      hp -= damage;
+      events.push({ t: 'bottomReached', pieceId: id, damage });
+      events.push({ t: 'hpChanged', hp, delta: -damage });
       if (hp <= 0) {
         status = 'over';
         overReason = 'hp';

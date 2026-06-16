@@ -14,6 +14,13 @@ src/ai/
   heuristic.ts        휴리스틱 평가 + aiTakeTurn(공용 Intent 통로로 적 수)
 ```
 
+### 설정
+```
+src/config/
+  difficulty.ts       난이도 프리셋(유속·HP·도달피해·AI생각시간 [wired],
+                      리듬판정·AI노브 [pending]). 추후 StageScript.rules로 흡수.
+```
+
 ### 웹 진입 / 렌더
 ```
 index.html            Vite 엔트리
@@ -156,6 +163,11 @@ src/
 - **역할**: AI 휴리스틱(MVP). 매 턴 1수 — 잡기 우선(가치 높은 대상), 아니면 코어 쪽 전진. 공용 Intent 통로 사용.
 - **export**: `aiChooseMove(state, side)`, `aiTakeTurn(state)`(1수 또는 패스). 결정론.
 - **메모**: 하강 예측·danger 회피·후보 탐색/취소 연출·난이도 노브는 이후 확장.
+
+### `src/config/difficulty.ts`
+- **역할**: 난이도 튜닝 한곳 관리. 추후 `StageScript.rules`로 흡수될 값들의 코드 프리셋.
+- **export**: `DifficultyConfig`, `DIFFICULTIES`(easy/normal/hard), `ACTIVE_DIFFICULTY`.
+- **항목**: 유속(`hourglassCapacityMs`)·`maxHp`·`damagePerReach`·AI `thinkMs` = [wired], 리듬 판정 윈도우·AI 노브(lookahead/avoidDanger/noise) = [pending: 빌드4·5].
 
 ### `src/demo/ai.ts`
 - **역할**: AI 데모 — 양측 AI + 하강을 섞어 한 판 진행(잡기·royal 종료 관찰). `npm run demo:ai`.

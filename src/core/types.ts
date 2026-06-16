@@ -106,6 +106,8 @@ export interface GameState {
   rng: RngState;
   status: GameStatus;
   overReason?: OverReason;
+  /** 적이 맨 아래 도달 1회당 HP 감소량(난이도) */
+  damagePerReach: number;
   /** 현재 수를 둘 차례 */
   turn: Side;
   /** 진행 중인 이동(없으면 대기) */

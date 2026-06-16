@@ -11,13 +11,14 @@ function game(
   cols: number,
   rows: number,
   specs: Spec[],
-  init: { hp?: number; capacityMs?: number } = {},
+  init: { hp?: number; capacityMs?: number; damagePerReach?: number } = {},
 ): GameState {
   const placer = new Placer();
   for (const [k, s, c, r] of specs) placer.place(k, s, c, r);
   const base = emptyGame(cols, rows, [], {
     maxHp: init.hp ?? 10,
     capacityMs: init.capacityMs ?? 1000,
+    damagePerReach: init.damagePerReach,
   });
   return { ...base, pieces: placer.build() };
 }
@@ -113,6 +114,13 @@ describe('맨 아래 도달 — 최우선(HP 감소)', () => {
     const r = oneCycle(g);
     expect(r.state.status).toBe('over');
     expect(r.state.overReason).toBe('hp');
+  });
+
+  it('damagePerReach(난이도)가 도달 피해에 반영', () => {
+    const g = game(5, 4, [['pawn', 'enemy', 2, 2]], { hp: 5, damagePerReach: 2 });
+    const r = oneCycle(g);
+    expect(r.state.hp).toBe(3); // 5 - 2
+    expect(r.events.some((e) => e.t === 'hpChanged' && e.delta === -2)).toBe(true);
   });
 });
 
