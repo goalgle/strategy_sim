@@ -3,10 +3,16 @@
 > 짝 문서: [concept.md](./concept.md)(기획) · [architecture.md](./architecture.md)(설계).
 > 이 문서는 **구현된 파일이 무엇을 하는가**를 추적한다. 빌드 단계가 진행될 때마다 갱신.
 
-## 현재 단계: 빌드 3b (PixiJS 렌더 — 브라우저) ✅
-(빌드 1: 보드+합법수+잡기 ✅ · 빌드 2: 모래시계·하강·스폰·충돌 ✅ · 빌드 3a: 입력/Intent ✅)
-브라우저에서 보드·말·궁성·하이라이트·HUD·하강 동작 확인(Vite 빌드 통과).
+## 현재 단계: 빌드 5 (AI MVP — 플레이어 vs AI) ✅
+(빌드 1 보드+합법수+잡기 · 2 모래시계·하강 · 3a 입력/Intent · 3b PixiJS 렌더 ✅)
+적이 휴리스틱으로 매 턴 1수(잡기 우선·아니면 전진). 브라우저는 이제 플레이어 vs AI.
 다음: 빌드 4 — 리듬+점수.
+
+### AI
+```
+src/ai/
+  heuristic.ts        휴리스틱 평가 + aiTakeTurn(공용 Intent 통로로 적 수)
+```
 
 ### 웹 진입 / 렌더
 ```
@@ -19,6 +25,7 @@ src/
 ```
 - 실행: `npm run dev`(개발 서버) · `npm run build`(프로덕션 빌드).
 - 입력: 클릭=선택/가상이동, 재클릭=확정, 우클릭=취소, F=바닥 토글.
+- 적 차례는 `AI_THINK_MS`(450ms) 뒤 `aiTakeTurn`이 자동 수행 → 플레이어 vs AI.
 - ⚠ Space 정지 토글은 브라우저 동작 확인 필요(코어 pause는 단위테스트 통과).
 
 ```
@@ -145,6 +152,14 @@ src/
 ### `src/demo/play.ts`
 - **역할**: 통합 데모 — 이동 3단계 인텐트 + 능동 잡기 + 턴 교대 + 실시간 하강 섞임(적 수는 스크립트). `npm run demo:play`.
 
+### `src/ai/heuristic.ts`
+- **역할**: AI 휴리스틱(MVP). 매 턴 1수 — 잡기 우선(가치 높은 대상), 아니면 코어 쪽 전진. 공용 Intent 통로 사용.
+- **export**: `aiChooseMove(state, side)`, `aiTakeTurn(state)`(1수 또는 패스). 결정론.
+- **메모**: 하강 예측·danger 회피·후보 탐색/취소 연출·난이도 노브는 이후 확장.
+
+### `src/demo/ai.ts`
+- **역할**: AI 데모 — 양측 AI + 하강을 섞어 한 판 진행(잡기·royal 종료 관찰). `npm run demo:ai`.
+
 ---
 
 ## 테스트
@@ -152,4 +167,5 @@ src/
 - `src/core/moves.test.ts` — 합법수·잡기·표준 진형(18개). 까다로운 장기 규칙·궁성 제약 정조준.
 - `src/core/tick.test.ts` — 모래시계·하강·충돌·맨아래 우선·HP·게임오버·스폰 결정론(12개).
 - `src/core/intent.test.ts` — 이동 3단계·턴 교대·royal 즉사·selection 재조정(12개).
-- 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`.
+- `src/ai/heuristic.test.ts` — 잡기 우선·가치 선호·전진·턴/패스·royal·결정론(7개).
+- 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.

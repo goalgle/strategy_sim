@@ -1,11 +1,14 @@
 // 브라우저 엔트리: 코어 GameState를 PixiJS로 렌더 + 마우스 입력을 Intent로 변환 + rAF 루프가 tick 구동.
 // 적 수는 AI(5단계) 전까지 핫시트(사람이 양측을 둠).
+import { aiTakeTurn } from './ai/heuristic';
 import { eq } from './core/board';
 import { STEP_MS } from './core/constants';
 import { createStandardGame } from './core/setup';
 import { tick } from './core/tick';
 import type { GameState, Intent } from './core/types';
 import { BoardView } from './render/pixiBoard';
+
+const AI_THINK_MS = 450; // 적 수를 눈에 보이게 하는 연출 지연
 
 const mount = document.getElementById('app')!;
 
@@ -62,6 +65,7 @@ window.addEventListener('keydown', (e: KeyboardEvent) => {
 
 // ── 고정 STEP 누적 루프 ───────────────────────────
 let acc = 0;
+let aiWait = 0; // 적 차례 연출 지연(벽시계)
 view.app.ticker.add((ticker) => {
   acc += ticker.deltaMS;
   let dt = 0;
@@ -73,5 +77,17 @@ view.app.ticker.add((ticker) => {
   if (dt > 0 || intents.length > 0) {
     state = tick(state, { dt, intents }).state;
   }
+
+  // 적 차례면 잠시 뒤 AI가 1수(플레이어는 적 말 조작 불가 → 사실상 플레이어 vs AI)
+  if (state.status === 'playing' && state.turn === 'enemy') {
+    aiWait += ticker.deltaMS;
+    if (aiWait >= AI_THINK_MS) {
+      state = aiTakeTurn(state).state;
+      aiWait = 0;
+    }
+  } else {
+    aiWait = 0;
+  }
+
   view.draw(state);
 });
