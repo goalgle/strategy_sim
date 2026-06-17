@@ -26,14 +26,14 @@ src/config/
 index.html            Vite 엔트리
 vite.config.ts        Vite 설정(target es2022)
 src/
-  main.ts             브라우저 부트스트랩: 입력→Intent + rAF 루프가 tick 구동(핫시트)
+  main.ts             시작 메뉴(난이도 선택) → 게임(입력→Intent + rAF 루프) → 게임오버 → 메뉴
   render/
     pixiBoard.ts      PixiJS 보드 렌더러(그리드↔교차 토글·하이라이트·HUD·모래시계 바)
 ```
 - 실행: `npm run dev`(개발 서버) · `npm run build`(프로덕션 빌드).
+- 시작 시 **난이도 선택 메뉴**(쉬움/보통/어려움 — `DIFFICULTIES`에서 데이터 드리븐). 게임오버 시 점수 표시 + 메뉴 복귀.
 - 입력: 클릭=선택/가상이동, 재클릭=확정, 우클릭=취소, F=바닥 토글.
-- 적 차례는 `AI_THINK_MS`(450ms) 뒤 `aiTakeTurn`이 자동 수행 → 플레이어 vs AI.
-- ⚠ Space 정지 토글은 브라우저 동작 확인 필요(코어 pause는 단위테스트 통과).
+- 적 차례는 난이도별 `ai.thinkMs` 뒤 `aiTakeTurn` 자동 → 플레이어 vs AI.
 
 ```
 src/
