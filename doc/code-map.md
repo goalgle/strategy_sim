@@ -171,9 +171,11 @@ src/
 - **역할**: 통합 데모 — 이동 3단계 인텐트 + 능동 잡기 + 턴 교대 + 실시간 하강 섞임(적 수는 스크립트). `npm run demo:play`.
 
 ### `src/ai/heuristic.ts`
-- **역할**: AI 휴리스틱(MVP). 매 턴 1수 — 잡기 우선(가치 높은 대상), 아니면 코어 쪽 전진. 공용 Intent 통로 사용.
-- **export**: `aiChooseMove(state, side)`, `aiTakeTurn(state)`(1수 또는 패스). 결정론.
-- **메모**: 하강 예측·danger 회피·후보 탐색/취소 연출·난이도 노브는 이후 확장.
+- **역할**: AI 휴리스틱(가중 평가). 매 턴 1수. 공용 Intent 통로 사용. 결정론.
+- **평가 요인**: ① 잡기(말 가치×10) ② 전진(코어 쪽) ③ **하강 예측**(아래로 N칸 내려가 깔아뭉갤 내 말 자리 선호) ④ **위험 회피**(되잡히는 손해 트레이드 감점) ⑤ **잡음**(난이도별 무작위).
+- **난이도 노브 `AiConfig`**: `lookaheadDescents`·`avoidDanger`·`noise`(difficulty.ts에서 옴).
+- **export**: `AiConfig`, `DEFAULT_AI_CONFIG`, `aiChooseMove(state, side, cfg?)`, `aiTakeTurn(state, cfg?)`.
+- **메모**: 후보 탐색/취소 연출(리듬 스냅)은 이후. 위험 회피는 1-ply.
 
 ### `src/config/difficulty.ts`
 - **역할**: 난이도 튜닝 한곳 관리. 추후 `StageScript.rules`로 흡수될 값들의 코드 프리셋.

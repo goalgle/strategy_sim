@@ -150,7 +150,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     if (state.status === 'playing' && state.turn === 'enemy') {
       aiWait += ticker.deltaMS;
       if (aiWait >= aiThinkMs) {
-        state = aiTakeTurn(state).state;
+        state = aiTakeTurn(state, diff.ai).state; // 난이도별 AI 노브 적용
         aiWait = 0;
       }
     } else {

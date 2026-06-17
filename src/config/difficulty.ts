@@ -28,11 +28,11 @@ export interface DifficultyConfig {
   ai: {
     /** [wired] 적 수 연출 지연 ms(생각하는 시간). */
     thinkMs: number;
-    /** [pending: 빌드5] 하강 예측 깊이(0=예측 안 함). */
+    /** [wired] 하강 예측 깊이(0=예측 안 함). */
     lookaheadDescents: number;
-    /** [pending: 빌드5] 위험한 자리 회피 여부. */
+    /** [wired] 위험한 자리 회피 여부. */
     avoidDanger: boolean;
-    /** [pending: 빌드5] 수 선택 잡음(클수록 약함). 0~1. */
+    /** [wired] 수 선택 잡음(클수록 약함). 0~1. */
     noise: number;
   };
 }
