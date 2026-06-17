@@ -128,6 +128,24 @@ export interface AiMove {
   to: Coord;
 }
 
+/** 점수 상위 N개 후보(best 우선). 연출(탐색·취소)·자동스킬용. 결정론(안정 정렬). */
+export function aiRankedMoves(
+  state: GameState,
+  side: Side,
+  cfg: AiConfig = DEFAULT_AI_CONFIG,
+  limit = 3,
+): AiMove[] {
+  const scored: { m: AiMove; s: number }[] = [];
+  for (const p of state.pieces) {
+    if (p.side !== side) continue;
+    for (const to of legalMoves(p, state)) {
+      scored.push({ m: { pieceId: p.id, to }, s: evaluateMove(p, to, state, side, cfg) });
+    }
+  }
+  scored.sort((a, b) => b.s - a.s); // V8 안정 정렬 → 동점은 생성 순서 유지(=결정론)
+  return scored.slice(0, limit).map((x) => x.m);
+}
+
 /** 현재 side의 최선 1수(결정론: 안정 순서에서 첫 최대). 둘 수 없으면 null. */
 export function aiChooseMove(state: GameState, side: Side, cfg: AiConfig = DEFAULT_AI_CONFIG): AiMove | null {
   let best: AiMove | null = null;

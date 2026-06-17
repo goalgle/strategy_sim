@@ -1,5 +1,6 @@
 // 브라우저 엔트리: 시작 메뉴(난이도 선택) → 게임(PixiJS 렌더 + 입력 + rAF 루프가 tick 구동) → 게임오버 → 메뉴.
 import { aiTakeTurn } from './ai/heuristic';
+import { AiPerformer } from './ai/performer';
 import { DIFFICULTIES, type DifficultyLevel } from './config/difficulty';
 import { eq } from './core/board';
 import { STEP_MS } from './core/constants';
@@ -91,6 +92,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   canvas.addEventListener(
     'pointerdown',
     (e: PointerEvent) => {
+      if (state.turn !== 'player') return; // 적 차례(AI 연출 중)엔 입력 무시
       const rect = canvas.getBoundingClientRect();
       const cell = view.cellFromPixel(e.clientX - rect.left, e.clientY - rect.top);
       if (!cell) return;
@@ -132,6 +134,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   let acc = 0;
   let aiWait = 0;
   let ended = false;
+  const performer = new AiPerformer();
 
   view.app.ticker.add((ticker) => {
     acc += ticker.deltaMS;
@@ -147,11 +150,18 @@ async function startGame(level: DifficultyLevel): Promise<void> {
       for (const e of r.events) if (e.t === 'rhythm') view.lastJudge = e.judge;
     }
 
+    // 적 차례: 잠깐 생각 후 연출 시작 → 반박자마다 인텐트를 큐에 흘림.
     if (state.status === 'playing' && state.turn === 'enemy') {
-      aiWait += ticker.deltaMS;
-      if (aiWait >= aiThinkMs) {
-        state = aiTakeTurn(state, diff.ai).state; // 난이도별 AI 노브 적용
-        aiWait = 0;
+      if (performer.active) {
+        queue.push(...performer.update(ticker.deltaMS));
+      } else if (queue.length === 0) {
+        aiWait += ticker.deltaMS;
+        if (aiWait >= aiThinkMs) {
+          aiWait = 0;
+          if (!performer.plan(state, diff.ai)) {
+            state = aiTakeTurn(state, diff.ai).state; // 둘 수 없으면 패스
+          }
+        }
       }
     } else {
       aiWait = 0;
