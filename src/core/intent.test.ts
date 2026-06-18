@@ -133,17 +133,17 @@ describe('이동 3단계 인텐트', () => {
 });
 
 describe('점수 (플레이어 전용, 리듬+처치)', () => {
-  it('플레이어 확정: 리듬 점수(timeMs=0 → just=3)', () => {
-    const g = game(5, 5, [['rook', 'player', 2, 2]]); // timeMs 0 = 정각 → just
+  it('플레이어 확정: 리듬 점수(timeMs=0 → perfect=3)', () => {
+    const g = game(5, 5, [['rook', 'player', 2, 2]]); // timeMs 0 = 정각 → perfect
     const s = run(g, [
       { t: 'select', pieceId: 'p-rook-0' },
       { t: 'preview', to: { col: 2, row: 0 } },
       { t: 'confirm' },
     ]);
-    expect(s.score).toBe(3); // 리듬 just
+    expect(s.score).toBe(3); // 리듬 perfect
   });
 
-  it('플레이어 확정 + 잡기: 리듬 + 처치 합산(just3 + 폰1 = 4)', () => {
+  it('플레이어 확정 + 잡기: 리듬 + 처치 합산(perfect3 + 폰1 = 4)', () => {
     const g = game(5, 5, [
       ['rook', 'player', 2, 2],
       ['pawn', 'enemy', 2, 0],
@@ -157,7 +157,7 @@ describe('점수 (플레이어 전용, 리듬+처치)', () => {
       ],
     });
     expect(res.state.score).toBe(4);
-    expect(res.events.some((e) => e.t === 'rhythm' && e.judge === 'just')).toBe(true);
+    expect(res.events.some((e) => e.t === 'rhythm' && e.judge === 'perfect')).toBe(true);
     expect(res.events.some((e) => e.t === 'scored' && e.reason === 'capture')).toBe(true);
   });
 

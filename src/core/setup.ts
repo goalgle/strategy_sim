@@ -7,8 +7,9 @@ import {
   DEFAULT_HOURGLASS_CAPACITY_MS,
   DEFAULT_MAX_HP,
   DEFAULT_SEED,
-  RHYTHM_JUST_MS,
-  RHYTHM_NEAR_MS,
+  RHYTHM_BAD_MS,
+  RHYTHM_GOOD_MS,
+  RHYTHM_PERFECT_MS,
 } from './constants';
 import { makeRng } from './rng';
 import type { Board, Family, GameState, Piece, PieceKind, Side } from './types';
@@ -66,10 +67,10 @@ export interface GameInit {
   damagePerReach?: number;
   /** 리듬: BPM(기본 DEFAULT_BPM). */
   bpm?: number;
-  /** 리듬: Just 허용 오차 ms(기본 RHYTHM_JUST_MS). */
-  justWindowMs?: number;
-  /** 리듬: 근접 허용 오차 ms(기본 RHYTHM_NEAR_MS). */
-  nearWindowMs?: number;
+  /** 리듬 판정 임계 ms(기본 상수). */
+  perfectMs?: number;
+  goodMs?: number;
+  badMs?: number;
 }
 
 /** 공통 시간·HP·RNG·상태 기본값으로 빈 GameState 골격을 만든다. */
@@ -94,8 +95,9 @@ function baseState(board: Board, init: GameInit): GameState {
     score: 0,
     rhythm: {
       bpm: init.bpm ?? DEFAULT_BPM,
-      justWindowMs: init.justWindowMs ?? RHYTHM_JUST_MS,
-      nearWindowMs: init.nearWindowMs ?? RHYTHM_NEAR_MS,
+      perfectMs: init.perfectMs ?? RHYTHM_PERFECT_MS,
+      goodMs: init.goodMs ?? RHYTHM_GOOD_MS,
+      badMs: init.badMs ?? RHYTHM_BAD_MS,
     },
   };
 }

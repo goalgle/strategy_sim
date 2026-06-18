@@ -29,7 +29,9 @@ vite.config.ts        Vite 설정(target es2022)
 src/
   main.ts             시작 메뉴(난이도 선택) → 게임(입력→Intent + rAF 루프) → 게임오버 → 메뉴
   render/
-    pixiBoard.ts      PixiJS 보드 렌더러(그리드↔교차 토글·하이라이트·HUD·모래시계 바)
+    pixiBoard.ts      PixiJS 보드 렌더러(토글·하이라이트·HUD·모래시계 바·박자 펄스·판정 팝업)
+  audio/
+    sfx.ts            WebAudio 합성 SFX(선택/이동/잡기/취소/판정/피해/스폰/게임오버)
 ```
 - 실행: `npm run dev`(개발 서버) · `npm run build`(프로덕션 빌드).
 - 시작 시 **난이도 선택 메뉴**(쉬움/보통/어려움 — `DIFFICULTIES`에서 데이터 드리븐). 게임오버 시 점수 표시 + 메뉴 복귀.
@@ -117,7 +119,7 @@ src/
 
 ### `src/core/rhythm.ts`
 - **역할**: 리듬 판정 — `state.timeMs`(sim 시계) 기준이라 결정론.
-- **export**: `judgeAt(timeMs, rhythm)`(just/near/miss), `RHYTHM_SCORE`(3/2/0), `beatPeriodMs`, `beatPhase01`(박자 펄스용).
+- **export**: `judgeAt(timeMs, rhythm)`(**perfect/good/bad/miss** 4단계), `RHYTHM_SCORE`(3/2/1/0), `beatPeriodMs`, `beatPhase01`(박자 펄스용).
 
 ### `src/core/scoring.ts`
 - **역할**: 처치 점수 — 폰1·퀸5·킹/장6·그 외 3.

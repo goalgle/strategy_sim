@@ -5,7 +5,8 @@ export const DAMAGE_PER_REACH = 1; // 적이 맨 아래 도달 1회당 HP 감소
 export const DEFAULT_MAX_HP = 10;
 export const DEFAULT_SEED = 1; // 개발용 기본 시드
 
-// 리듬(빌드4) 기본값
+// 리듬(빌드4) 기본값 — 가장 가까운 박자와의 거리(ms) 임계
 export const DEFAULT_BPM = 120;
-export const RHYTHM_JUST_MS = 80; // Just 허용 오차
-export const RHYTHM_NEAR_MS = 180; // 근접 허용 오차
+export const RHYTHM_PERFECT_MS = 55;
+export const RHYTHM_GOOD_MS = 110;
+export const RHYTHM_BAD_MS = 180;

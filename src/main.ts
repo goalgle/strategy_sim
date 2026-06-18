@@ -1,6 +1,7 @@
 // 브라우저 엔트리: 시작 메뉴(난이도 선택) → 게임(PixiJS 렌더 + 입력 + rAF 루프가 tick 구동) → 게임오버 → 메뉴.
 import { aiTakeTurn } from './ai/heuristic';
 import { AiPerformer } from './ai/performer';
+import { SoundFx } from './audio/sfx';
 import { DIFFICULTIES, type DifficultyLevel } from './config/difficulty';
 import { eq } from './core/board';
 import { STEP_MS } from './core/constants';
@@ -14,6 +15,7 @@ const menuEl = document.getElementById('menu')!;
 
 const DIFF_NAME: Record<DifficultyLevel, string> = { easy: '쉬움', normal: '보통', hard: '어려움' };
 const DIFF_ORDER: DifficultyLevel[] = ['easy', 'normal', 'hard'];
+const sfx = new SoundFx();
 
 // ── 시작 메뉴: 난이도 선택 ───────────────────────────
 function showMenu(): void {
@@ -32,9 +34,10 @@ function showMenu(): void {
     const info = document.createElement('span');
     info.innerHTML =
       `유속 ${d.hourglassCapacityMs / 1000}s · HP ${d.maxHp} · 도달피해 ${d.damagePerReach}<br>` +
-      `판정 just ±${d.rhythm.justWindowMs}ms · 적 사고 ${d.ai.thinkMs}ms`;
+      `판정 perfect ±${d.rhythm.perfectMs}ms · 적 사고 ${d.ai.thinkMs}ms`;
     btn.append(name, info);
     btn.addEventListener('click', () => {
+      sfx.unlock(); // 사용자 제스처에서 오디오 활성화
       menuEl.style.display = 'none';
       void startGame(level);
     });
@@ -74,8 +77,9 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     capacityMs: diff.hourglassCapacityMs,
     maxHp: diff.maxHp,
     damagePerReach: diff.damagePerReach,
-    justWindowMs: diff.rhythm.justWindowMs,
-    nearWindowMs: diff.rhythm.nearWindowMs,
+    perfectMs: diff.rhythm.perfectMs,
+    goodMs: diff.rhythm.goodMs,
+    badMs: diff.rhythm.badMs,
   });
 
   const view = new BoardView();
@@ -147,7 +151,24 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     if (dt > 0 || intents.length > 0) {
       const r = tick(state, { dt, intents });
       state = r.state;
-      for (const e of r.events) if (e.t === 'rhythm') view.lastJudge = e.judge;
+      let lastMovedTo: { col: number; row: number } | null = null;
+      for (const e of r.events) {
+        switch (e.t) {
+          case 'selected': sfx.select(); break;
+          case 'moved': lastMovedTo = e.to; sfx.move(); break;
+          case 'captured': sfx.capture(); break;
+          case 'canceled': sfx.cancel(); break;
+          case 'rhythm': // 플레이어 전용: HUD + 말 위치에 판정 팝업 + 사운드
+            view.lastJudge = e.judge;
+            if (lastMovedTo) view.popJudge(e.judge, lastMovedTo);
+            sfx.judge(e.judge);
+            break;
+          case 'bottomReached': sfx.damage(); break;
+          case 'spawned': sfx.spawn(); break;
+          case 'gameOver': sfx.gameOver(); break;
+          default: break;
+        }
+      }
     }
 
     // 적 차례: 잠깐 생각 후 연출 시작 → 반박자마다 인텐트를 큐에 흘림.

@@ -79,14 +79,15 @@ export interface Hourglass {
 export type GameStatus = 'playing' | 'over';
 export type OverReason = 'hp' | 'royal';
 
-/** 입력 박자 판정(플레이어 전용). AI는 항상 just로 취급, 판정 계산 안 함. */
-export type RhythmJudge = 'just' | 'near' | 'miss';
+/** 입력 박자 판정(플레이어 전용). AI는 항상 perfect로 취급, 판정 계산 안 함. */
+export type RhythmJudge = 'perfect' | 'good' | 'bad' | 'miss';
 
-/** 리듬 설정. bpm은 음악, 판정 윈도우는 난이도. */
+/** 리듬 설정. bpm은 음악, 판정 윈도우(ms)는 난이도. perfect < good < bad ≤ 이내, 그 밖은 miss. */
 export interface RhythmConfig {
   bpm: number;
-  justWindowMs: number;
-  nearWindowMs: number;
+  perfectMs: number;
+  goodMs: number;
+  badMs: number;
 }
 
 /** 진행 중인 한 번의 이동(선택 → 가상이동 → 확정/취소). 확정 전까지 보드 불변. */

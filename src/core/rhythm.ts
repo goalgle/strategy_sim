@@ -4,8 +4,9 @@
 import type { RhythmConfig, RhythmJudge } from './types';
 
 export const RHYTHM_SCORE: Record<RhythmJudge, number> = {
-  just: 3,
-  near: 2,
+  perfect: 3,
+  good: 2,
+  bad: 1,
   miss: 0,
 };
 
@@ -18,8 +19,9 @@ export function judgeAt(timeMs: number, r: RhythmConfig): RhythmJudge {
   const period = beatPeriodMs(r.bpm);
   const phase = ((timeMs % period) + period) % period;
   const delta = Math.min(phase, period - phase); // 가장 가까운 박자까지의 거리
-  if (delta <= r.justWindowMs) return 'just';
-  if (delta <= r.nearWindowMs) return 'near';
+  if (delta <= r.perfectMs) return 'perfect';
+  if (delta <= r.goodMs) return 'good';
+  if (delta <= r.badMs) return 'bad';
   return 'miss';
 }
 

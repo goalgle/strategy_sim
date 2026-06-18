@@ -111,7 +111,7 @@ interface Hourglass {
   paused: boolean;    // 정지 기능(액션 #2) 발동 시 true
 }
 
-type RhythmJudge = 'just' | 'near' | 'miss';   // 입력 박자 판정
+type RhythmJudge = 'perfect' | 'good' | 'bad' | 'miss';   // 입력 박자 판정(4단계)
 interface Rhythm {
   bpm: number;
   originMs: number;        // 박자 기준 시각(t=0 정렬)
@@ -170,7 +170,7 @@ type MoveGen = (piece: Piece, state: GameState) => Coord[];
 const RULES: Record<PieceKind, MoveGen>;          // src/core/pieces/registry.ts
 
 function captureScore(kind: PieceKind): number;   // pawn=1, queen=5, royal(king/general)=6, 그 외=3
-const RHYTHM_SCORE: Record<RhythmJudge, number>;  // just=3, near=2, miss=0
+const RHYTHM_SCORE: Record<RhythmJudge, number>;  // perfect=3, good=2, bad=1, miss=0
 ```
 
 ### tick 계약 — 코어의 단일 진입점
@@ -606,7 +606,7 @@ plan(state):
         emit cancel ; continue                        // 다음 후보로
      emit confirm ; return                            // 안전·이득 수 확정
 ```
-- **박자 강제(연출만)**: 각 intent는 BPM 그리드의 박자 step에 스냅된다. 단 AI는 **항상 Just**로 취급 — **리듬 판정을 계산하지 않고**, 리듬 점수도 없다(판정·보너스는 플레이어 전용). AI는 박자를 *타는 모습*만 보여줄 뿐.
+- **박자 강제(연출만)**: 각 intent는 BPM 그리드의 박자 step에 스냅된다. 단 AI는 **항상 perfect**로 취급 — **리듬 판정을 계산하지 않고**, 리듬 점수도 없다(판정·보너스는 플레이어 전용). AI는 박자를 *타는 모습*만 보여줄 뿐.
 - **연출 중 하강 끼어듦**: 선택한 적 말이 하강으로 이동/제거될 수 있음 → tick의 **selection 재조정**이 처리, 필요 시 재계획.
 - 취소는 일부 연출이지만 **실제 점수(danger·score)에 근거** → "알지만 보여주며 두는" 일관성.
 

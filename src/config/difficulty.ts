@@ -21,8 +21,8 @@ export interface DifficultyConfig {
   damagePerReach: number;
 
   // ── 리듬 판정(플레이어 전용) ──
-  /** [wired] Just/근접 허용 오차 ms. 좁을수록 어려움. */
-  rhythm: { justWindowMs: number; nearWindowMs: number };
+  /** [wired] perfect/good/bad 임계 ms(가장 가까운 박자와의 거리). 좁을수록 어려움. */
+  rhythm: { perfectMs: number; goodMs: number; badMs: number };
 
   // ── AI ──
   ai: {
@@ -43,7 +43,7 @@ export const DIFFICULTIES: Record<DifficultyLevel, DifficultyConfig> = {
     hourglassCapacityMs: 12000,
     maxHp: 15,
     damagePerReach: 1,
-    rhythm: { justWindowMs: 130, nearWindowMs: 280 },
+    rhythm: { perfectMs: 90, goodMs: 160, badMs: 240 },
     ai: { thinkMs: 650, lookaheadDescents: 0, avoidDanger: false, noise: 0.4 },
   },
   normal: {
@@ -51,7 +51,7 @@ export const DIFFICULTIES: Record<DifficultyLevel, DifficultyConfig> = {
     hourglassCapacityMs: 8000,
     maxHp: 10,
     damagePerReach: 1,
-    rhythm: { justWindowMs: 80, nearWindowMs: 180 },
+    rhythm: { perfectMs: 55, goodMs: 110, badMs: 180 },
     ai: { thinkMs: 450, lookaheadDescents: 1, avoidDanger: true, noise: 0.15 },
   },
   hard: {
@@ -59,7 +59,7 @@ export const DIFFICULTIES: Record<DifficultyLevel, DifficultyConfig> = {
     hourglassCapacityMs: 5000,
     maxHp: 7,
     damagePerReach: 2,
-    rhythm: { justWindowMs: 50, nearWindowMs: 120 },
+    rhythm: { perfectMs: 35, goodMs: 70, badMs: 120 },
     ai: { thinkMs: 300, lookaheadDescents: 2, avoidDanger: true, noise: 0 },
   },
 };

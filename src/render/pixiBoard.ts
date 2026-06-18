@@ -28,6 +28,13 @@ const GLYPH: Record<PieceKind, string> = {
   pawn: 'P',
 };
 
+const JUDGE_COLOR: Record<RhythmJudge, number> = {
+  perfect: 0x66e0ff,
+  good: 0x66e08a,
+  bad: 0xffb86b,
+  miss: 0xff6b6b,
+};
+
 const COL = {
   bg: 0x0b0e1a,
   board: 0x161a2e,
@@ -48,6 +55,8 @@ export class BoardView {
   private highlights = new Graphics();
   private bar = new Graphics();
   private piecesLayer = new Container();
+  private popupLayer = new Container();
+  private popups: { text: Text; coord: Coord; life: number }[] = [];
   private hud = new Text({ text: '', style: { fill: 0xcdd6f4, fontSize: 14, fontFamily: 'monospace' } });
   private cols = 0;
   private rows = 0;
@@ -64,7 +73,14 @@ export class BoardView {
     mount.appendChild(this.app.canvas);
     this.hud.y = BAR_H + PAD + this.rows * CELL + 6;
     this.hud.x = 4;
-    this.app.stage.addChild(this.floor, this.highlights, this.bar, this.piecesLayer, this.hud);
+    this.app.stage.addChild(
+      this.floor,
+      this.highlights,
+      this.bar,
+      this.piecesLayer,
+      this.popupLayer,
+      this.hud,
+    );
   }
 
   private boardTop(): number {
@@ -88,7 +104,37 @@ export class BoardView {
     this.drawHighlights(state);
     this.drawBar(state);
     this.drawPieces(state);
+    this.updatePopups();
     this.drawHud(state);
+  }
+
+  /** 판정 텍스트(PERFECT/GOOD/BAD/MISS)를 말 이동 위치에 띄운다 — 떠오르며 사라짐. */
+  popJudge(judge: RhythmJudge, coord: Coord): void {
+    const t = new Text({
+      text: judge.toUpperCase(),
+      style: { fill: JUDGE_COLOR[judge], fontSize: 16, fontWeight: 'bold', fontFamily: 'system-ui' },
+    });
+    t.anchor.set(0.5);
+    this.popupLayer.addChild(t);
+    this.popups.push({ text: t, coord, life: 0 });
+  }
+
+  private updatePopups(): void {
+    const dt = this.app.ticker.deltaMS;
+    const POPUP_MS = 1000;
+    this.popups = this.popups.filter((p) => {
+      p.life += dt;
+      const k = p.life / POPUP_MS;
+      if (k >= 1) {
+        p.text.destroy();
+        return false;
+      }
+      const c = this.center(p.coord.col, p.coord.row);
+      p.text.x = c.x;
+      p.text.y = c.y - 8 - k * 26; // 위로 떠오름
+      p.text.alpha = 1 - k; // 페이드아웃
+      return true;
+    });
   }
 
   private drawFloor(state: GameState): void {
