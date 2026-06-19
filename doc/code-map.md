@@ -3,16 +3,20 @@
 > 짝 문서: [concept.md](./concept.md)(기획) · [architecture.md](./architecture.md)(설계).
 > 이 문서는 **구현된 파일이 무엇을 하는가**를 추적한다. 빌드 단계가 진행될 때마다 갱신.
 
-## 현재 단계: 빌드 4 (리듬 + 점수) ✅
-(빌드 1 보드+합법수 · 2 모래시계·하강 · 3a 입력 · 3b 렌더 · 5 AI MVP ✅)
-플레이어 확정 수에 박자 판정(Just/근접/빗나감) + 처치 점수 합산. AI는 항상 just·무점수.
-HUD에 점수·판정·박자 펄스 표시. 빌드 순서상 주요 시스템은 거의 채워짐.
+## 현황 (플레이 가능 + 배포) ✅
+빌드 1~5 + 리듬/점수/사운드/메뉴/체크정지까지 구현. 플레이어 vs AI로 굴러가며 GitHub Pages 배포 설정 완료.
+- **코어**: 보드·12종 합법수·잡기 / 모래시계·하강·스폰·충돌 / 입력 3단계·턴·selection 재조정 / 리듬 판정·점수 / 왕 위협(체크) 시 모래시계 강제 정지. 순수·결정론.
+- **AI**: 가중 평가(잡기·전진·하강예측·위험회피·잡음) + 난이도 노브 + 연출(미끼→commit).
+- **프레젠테이션**: PixiJS 렌더(그리드↔교차 토글·하이라이트·HUD·박자 펄스·판정 팝업) + WebAudio SFX + 난이도 선택 메뉴.
+- **배포**: `vite base=/strategy_sim/` + GitHub Actions → `goalgle.github.io/strategy_sim/`.
+- **테스트 69개**, 타입체크·빌드 클린.
+- 다음 후보: BGM, 빌드 6 스크립트/스테이지 로드, 데일리/리더보드, 밸런싱.
 
 ### AI
 ```
 src/ai/
-  heuristic.ts        가중 평가 + aiChooseMove/aiRankedMoves/aiTakeTurn(난이도 노브)
-  performer.ts        AI 연출 — 후보 탐색(가상이동→취소)→최선수 확정, 반박자 페이스
+  heuristic.ts        가중 평가 + aiChooseMove/aiRankedMoves(난이도 노브). 위험회피는 threats 공유
+  performer.ts        AI 연출 — 미끼(가상이동→취소) 후 'commit' 신호, 반박자 페이스
 ```
 
 ### 설정
@@ -32,17 +36,19 @@ src/
     pixiBoard.ts      PixiJS 보드 렌더러(토글·하이라이트·HUD·모래시계 바·박자 펄스·판정 팝업)
   audio/
     sfx.ts            WebAudio 합성 SFX(선택/이동/잡기/취소/판정/피해/스폰/게임오버)
+.github/workflows/
+  deploy.yml          main push 시 빌드→GitHub Pages 자동 배포
 ```
 - 실행: `npm run dev`(개발 서버) · `npm run build`(프로덕션 빌드).
 - 시작 시 **난이도 선택 메뉴**(쉬움/보통/어려움 — `DIFFICULTIES`에서 데이터 드리븐). 게임오버 시 점수 표시 + 메뉴 복귀.
-- 입력: 클릭=선택/가상이동, 재클릭=확정, 우클릭=취소, F=바닥 토글.
-- 적 차례는 난이도별 `ai.thinkMs` 뒤 `aiTakeTurn` 자동 → 플레이어 vs AI.
+- 입력: 클릭=선택/가상이동, 재클릭=확정, 우클릭=취소, F=바닥 토글, Space=정지.
+- 적 차례는 난이도별 `ai.thinkMs` 뒤 **연출(미끼)→commit**으로 1수. commit은 `tick(dt:0)`로 fresh 적용(이중 이동 방지).
 
 ```
 src/
   core/
-    types.ts            데이터 모델(+ Hourglass·RngState·HP·status)
-    constants.ts        게임 상수(STEP·capacity·damage·hp·seed)
+    types.ts            데이터 모델(+ Hourglass·HP·turn·selection·rhythm·score·checked)
+    constants.ts        게임 상수(STEP·capacity·damage·hp·seed·리듬 윈도우)
     rng.ts              씨드 RNG(결정론 위생)
     board.ts            보드 헬퍼 + 궁성 모델
     pieces/
@@ -51,8 +57,9 @@ src/
       janggi.ts         장기 7종 합법수
       registry.ts       RULES 레지스트리(종류→합법수)
     rules.ts            능동 잡기(applyMove)
-    events.ts           GameEvent 유니온(+ 입력/이동/리듬/점수 이벤트)
-    rhythm.ts           BPM 판정(judgeAt) + RHYTHM_SCORE + 박자 펄스
+    threats.ts          위협 판정(isPlayerInCheck·isAttackedBy) — 체크 정지 + AI danger 공유
+    events.ts           GameEvent 유니온(입력/이동/리듬/점수/체크 등)
+    rhythm.ts           BPM 4단계 판정(judgeAt) + RHYTHM_SCORE + 박자 펄스
     scoring.ts          처치 점수(captureScore)
     descent.ts          일제 하강 해소(위쪽 승·맨아래 우선)
     spawn.ts            시드 기반 웨이브 스폰
@@ -66,6 +73,7 @@ src/
     show.ts             합법수 데모 (npm run demo)
     descent.ts          하강·충돌·HP 데모 (npm run demo:descent)
     play.ts             입력+턴+하강 통합 데모 (npm run demo:play)
+    ai.ts               양측 AI 한 판 데모 (npm run demo:ai)
 ```
 
 ---
@@ -120,7 +128,7 @@ src/
 
 ### `src/core/events.ts`
 - **역할**: `tick`이 반환하는 `GameEvent` 유니온.
-- **이벤트**: `selected`/`previewed`/`canceled`/`moved`/`reconciled`/`turnChanged`, `captured`(active/descent), `cycle`/`descended`/`bottomReached`/`spawned`, `rhythm`/`scored`, `hpChanged`/`gameOver`.
+- **이벤트**: `selected`/`previewed`/`canceled`/`moved`/`reconciled`/`turnChanged`, `captured`(active/descent), `cycle`/`descended`/`bottomReached`/`spawned`, `rhythm`/`scored`, `hpChanged`/`check`/`gameOver`.
 
 ### `src/core/rhythm.ts`
 - **역할**: 리듬 판정 — `state.timeMs`(sim 시계) 기준이라 결정론.
@@ -149,17 +157,17 @@ src/
 - **역할**: 이동 3단계 인텐트 처리(플레이어·AI 공용 통로).
 - **export**: `applyIntent(state, intent) → { state, events }`.
 - **규칙**: `select`(현재 차례 말만), `preview`(합법 칸만, 보드 불변), `confirm`(능동 잡기=이동측 승, royal 잡으면 게임오버, 턴 전환), `cancel`(preview 되돌림/선택 해제). `special`은 이후 단계.
-- **점수(빌드4)**: `confirm`이 **플레이어**일 때만 리듬 판정(timeMs 기준)+처치 점수를 합산. AI는 항상 just 취급·무점수.
+- **점수**: `confirm`이 **플레이어**일 때만 리듬 판정(timeMs 기준)+처치 점수를 합산. AI는 항상 perfect 취급·무점수.
 
 ### `src/core/tick.ts`
 - **역할**: 코어 단일 진입점.
 - **export**: `tick(state, { dt, intents? }) → { state, events }`.
-- **파이프라인**: 모래시계 전진 → 하강 → 스폰 → (하강 시) selection 재조정 → 인텐트 처리. 순수·결정론, `dt` 크면 다중 하강 누적, 게임오버 후 무동작.
-- **메모**: 리듬·점수는 이후 단계에서 합류.
+- **파이프라인**: 리듬시계 전진 → 모래시계(하강·스폰) → (하강 시) selection 재조정 → 인텐트 처리 → 체크 재판정. 순수·결정론, `dt` 크면 다중 하강 누적, 게임오버 후 무동작.
+- **체크 정지**: `state.checked`(왕 위협)면 모래시계 동결. 하강 중 체크되면 즉시 멈춤. 보드 변화 시 재판정 → `check` 이벤트.
 
 ### `src/core/setup.ts`
 - **역할**: 초기 배치 + 시간·HP·RNG·상태 초기화.
-- **export**: `Placer`(id 자동 부여 배치 빌더), `GameInit`(seed/maxHp/capacityMs), `emptyGame(cols, rows, palaces?, init?)`, `createStandardGame({ gap?, cols?, ...GameInit })`.
+- **export**: `Placer`(id 자동 부여 배치 빌더), `GameInit`(seed/maxHp/capacityMs/damagePerReach/리듬 윈도우), `emptyGame(cols, rows, palaces?, init?)`, `createStandardGame({ gap?, cols?, ...GameInit })`.
 - **표준 진형**: 하단 장기(차마상사·장·포·졸) / 상단 체스 2줄(킹을 가운데 열 4에 정렬). 적 궁성 없음.
 
 ### `src/core/index.ts`
@@ -186,9 +194,9 @@ src/
 - **메모**: 위험 회피는 1-ply.
 
 ### `src/ai/performer.ts`
-- **역할**: AI 연출 — 즉답하지 않고 후보(2·3등)를 가상이동→취소로 시연하다 최선수 확정. 반박자마다 한 동작(박자 탐).
-- **export**: `AiPerformer` — `plan(state, cfg)→boolean`(둘 수 있나), `update(dtMs)→Intent[]`(프레임당 0~1개).
-- **메모**: 코어는 그대로(공용 Intent 통로). main이 적 차례에 구동, AI 연출 중 플레이어 입력 차단.
+- **역할**: AI 연출 — 후보(2·3등)를 가상이동→취소로 시연(미끼)하다 마지막에 `'commit'` 신호. 반박자마다 한 동작(박자 탐).
+- **export**: `RitualAction`(`Intent | 'commit'`), `AiPerformer` — `plan(state, cfg)→boolean`, `update(dtMs)→RitualAction[]`(프레임당 0~1개).
+- **메모**: 본 수는 main이 `commit`에서 `aiChooseMove`로 **현재 상태에서 새로** 계산해 `tick(dt:0)`로 적용(stale·이중 이동 방지). AI 연출 중 플레이어 입력 차단.
 
 ### `src/config/difficulty.ts`
 - **역할**: 난이도 튜닝 한곳 관리. 추후 `StageScript.rules`로 흡수될 값들의 코드 프리셋.
@@ -201,11 +209,11 @@ src/
 ---
 
 ## 테스트
-- `src/core/rng.test.ts` — RNG 결정론·순수성(4개).
-- `src/core/moves.test.ts` — 합법수·잡기·표준 진형(18개). 까다로운 장기 규칙·궁성 제약 정조준.
-- `src/core/tick.test.ts` — 모래시계·하강·충돌·맨아래 우선·HP·게임오버·스폰 결정론(12개).
-- `src/core/intent.test.ts` — 이동 3단계·턴 교대·royal 즉사·selection 재조정(12개).
-- `src/core/rhythm.test.ts` — 박자 판정 윈도우·점수·처치 점수(6개).
-- `src/ai/heuristic.test.ts` — 잡기 우선·가치·전진·위험회피·하강예측·턴/패스·결정론(9개).
-- `src/ai/performer.test.ts` — 연출 시퀀스(탐색·취소→확정)·턴 전환·패스(3개).
-- 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.
+- `src/core/rng.test.ts` — RNG 결정론·순수성.
+- `src/core/moves.test.ts` — 합법수·잡기·표준 진형(까다로운 장기 규칙·궁성 제약 정조준).
+- `src/core/tick.test.ts` — 모래시계·하강·충돌·맨아래 우선·HP·게임오버·스폰·**체크 시 정지/해제**.
+- `src/core/intent.test.ts` — 이동 3단계·턴 교대·royal 즉사·selection 재조정·**점수(리듬+처치)**.
+- `src/core/rhythm.test.ts` — 4단계 박자 판정·점수·처치 점수.
+- `src/ai/heuristic.test.ts` — 잡기 우선·가치·전진·위험회피·하강예측·턴/패스·결정론.
+- `src/ai/performer.test.ts` — 연출 시퀀스(미끼→commit)·턴 전환·패스.
+- 총 **69개** 통과. 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.
