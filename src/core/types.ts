@@ -129,6 +129,8 @@ export interface GameState {
   score: number;
   /** 리듬 설정. */
   rhythm: RhythmConfig;
+  /** 플레이어 왕이 적 사정권(체크)인가 → true면 모래시계 강제 정지. */
+  checked: boolean;
 }
 
 /** 말 종류별 합법 도착 좌표 생성 함수 */

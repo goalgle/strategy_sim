@@ -63,6 +63,10 @@ export class SoundFx {
   gameOver(): void {
     this.tone(330, 650, 'sine', 0.7, 80);
   }
+  check(): void {
+    // 왕 위협 경보 — 높고 날카롭게
+    this.tone(1320, 220, 'square', 0.6);
+  }
   judge(j: RhythmJudge): void {
     const freq: Record<RhythmJudge, number> = { perfect: 1320, good: 990, bad: 620, miss: 200 };
     this.tone(freq[j], j === 'miss' ? 170 : 110, j === 'miss' ? 'sawtooth' : 'sine', j === 'miss' ? 0.5 : 0.7);

@@ -99,6 +99,7 @@ function baseState(board: Board, init: GameInit): GameState {
       goodMs: init.goodMs ?? RHYTHM_GOOD_MS,
       badMs: init.badMs ?? RHYTHM_BAD_MS,
     },
+    checked: false,
   };
 }
 

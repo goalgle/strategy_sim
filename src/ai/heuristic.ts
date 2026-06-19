@@ -6,6 +6,7 @@ import type { GameEvent } from '../core/events';
 import { applyIntent } from '../core/intent';
 import { legalMoves } from '../core/pieces/registry';
 import { applyMove } from '../core/rules';
+import { isAttackedBy } from '../core/threats';
 import type { Coord, GameState, Intent, PieceKind, Side } from '../core/types';
 
 /** 난이도 노브(difficulty.ts의 ai에서 옴). */
@@ -65,17 +66,6 @@ function noise01(seed: number): number {
   x = Math.imul(x, 0xd35a2d97) >>> 0;
   x ^= x >>> 15;
   return (x >>> 0) / 4294967296;
-}
-
-/** cell이 bySide의 다음 능동 잡기 사정권인가(역질의). */
-function isAttackedBy(cell: Coord, bySide: Side, state: GameState): boolean {
-  for (const p of state.pieces) {
-    if (p.side !== bySide) continue;
-    for (const to of legalMoves(p, state)) {
-      if (to.col === cell.col && to.row === cell.row) return true;
-    }
-  }
-  return false;
 }
 
 function evaluateMove(piece: GameState['pieces'][number], to: Coord, state: GameState, side: Side, cfg: AiConfig): number {

@@ -30,4 +30,5 @@ export type GameEvent =
   | { t: 'scored'; total: number; delta: number; reason: 'capture' | 'rhythm' }
   // 자원/진행
   | { t: 'hpChanged'; hp: number; delta: number }
+  | { t: 'check'; checked: boolean } // 왕 위협 시작/해제(모래시계 강제 정지)
   | { t: 'gameOver'; reason: OverReason };

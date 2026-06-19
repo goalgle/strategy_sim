@@ -6,6 +6,7 @@ import type { GameEvent } from './events';
 import { applyIntent } from './intent';
 import { reconcileSelection } from './selection';
 import { spawnWave } from './spawn';
+import { isPlayerInCheck } from './threats';
 import type { GameState, Intent } from './types';
 
 export interface TickInput {
@@ -27,9 +28,9 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
   // 리듬 시계 전진(모래시계 정지와 무관하게 흐름).
   let s: GameState = { ...state, timeMs: state.timeMs + input.dt };
 
-  // 2~4. 모래시계 전진 → 하강 → 스폰
+  // 2~4. 모래시계 전진 → 하강 → 스폰. 단 체크(왕 위협) 상태면 강제 정지.
   let descended = false;
-  if (!s.hourglass.paused && s.hourglass.capacity > 0) {
+  if (!s.hourglass.paused && !state.checked && s.hourglass.capacity > 0) {
     let { progress, cycle } = s.hourglass;
     progress += input.dt;
 
@@ -48,6 +49,9 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
       const sp = spawnWave(s, cycle);
       s = sp.state;
       events.push(...sp.events);
+
+      // 하강으로 왕이 위협받게 되면 더 내려오지 않게 즉시 멈춤(꼼수 방지).
+      if (isPlayerInCheck(s)) break;
     }
 
     s = { ...s, hourglass: { ...s.hourglass, progress, cycle } };
@@ -61,11 +65,21 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
   }
 
   // 6. 인텐트(이동) 처리 — 순서대로
-  for (const intent of input.intents ?? []) {
+  const intents = input.intents ?? [];
+  for (const intent of intents) {
     if (s.status === 'over') break;
     const r = applyIntent(s, intent);
     s = r.state;
     events.push(...r.events);
+  }
+
+  // 7. 체크 상태 갱신(보드가 바뀐 경우만 재판정). 변하면 이벤트로 알림.
+  if (s.status !== 'over' && (descended || intents.length > 0)) {
+    const checked = isPlayerInCheck(s);
+    if (checked !== s.checked) {
+      s = { ...s, checked };
+      events.push({ t: 'check', checked });
+    }
   }
 
   return { state: s, events };

@@ -113,6 +113,11 @@ src/
 - **역할**: 능동 잡기(이동해 들어가 적 제거 = 이동측 승).
 - **export**: `canMoveTo(piece, to, state)`, `applyMove(state, pieceId, to) → { state, captured? }`.
 
+### `src/core/threats.ts`
+- **역할**: 위협 판정(코어 체크 + AI danger 공유).
+- **export**: `isAttackedBy(cell, side, state)`, `playerRoyal(state)`, `isPlayerInCheck(state)`.
+- **메모**: 왕 위협 시 tick이 모래시계를 강제 정지(꼼수 방지). `GameState.checked` + `check` 이벤트.
+
 ### `src/core/events.ts`
 - **역할**: `tick`이 반환하는 `GameEvent` 유니온.
 - **이벤트**: `selected`/`previewed`/`canceled`/`moved`/`reconciled`/`turnChanged`, `captured`(active/descent), `cycle`/`descended`/`bottomReached`/`spawned`, `rhythm`/`scored`, `hpChanged`/`gameOver`.

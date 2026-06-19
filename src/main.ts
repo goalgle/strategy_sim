@@ -166,6 +166,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
             break;
           case 'bottomReached': sfx.damage(); break;
           case 'spawned': sfx.spawn(); break;
+          case 'check': if (e.checked) sfx.check(); break; // 왕 위협 시작 시 경보
           case 'gameOver': sfx.gameOver(); break;
           default: break;
         }

@@ -199,7 +199,8 @@ export class BoardView {
     // 모래시계 진행바
     g.rect(0, 0, w, BAR_H).fill(0x202544);
     const frac = Math.min(1, state.hourglass.progress / state.hourglass.capacity);
-    g.rect(0, 0, w * frac, BAR_H).fill({ color: state.hourglass.paused ? 0x888888 : COL.bar });
+    const barColor = state.checked ? COL.capture : state.hourglass.paused ? 0x888888 : COL.bar;
+    g.rect(0, 0, w * frac, BAR_H).fill({ color: barColor }); // 체크 시 빨강(정지)
     // 박자 펄스(우상단): 정각에 가장 크고 밝게 → 플레이어가 타이밍 맞추는 기준
     const phase = beatPhase01(state.timeMs, state.rhythm.bpm); // 0=정각
     const r = 3 + (1 - phase) * (BAR_H * 0.5);
@@ -213,7 +214,12 @@ export class BoardView {
       const { x, y } = this.center(p.at.col, p.at.row);
       const c = new Graphics();
       c.circle(x, y, CELL * 0.38).fill(p.side === 'player' ? COL.player : COL.enemy);
-      if (p.isRoyal) c.circle(x, y, CELL * 0.44).stroke({ width: 3, color: COL.royal });
+      if (p.isRoyal) {
+        // 위협받는 플레이어 왕은 빨간 경보 링
+        const checkRing = p.side === 'player' && state.checked;
+        c.circle(x, y, CELL * 0.44).stroke({ width: 3, color: checkRing ? COL.capture : COL.royal });
+        if (checkRing) c.circle(x, y, CELL * 0.5).stroke({ width: 2, color: COL.capture });
+      }
       this.piecesLayer.addChild(c);
 
       const t = new Text({
@@ -231,8 +237,9 @@ export class BoardView {
     const turn = state.turn === 'player' ? '플레이어' : '적';
     const paused = state.hourglass.paused ? ' ⏸' : '';
     const judge = this.lastJudge ? `  ·  ${this.lastJudge.toUpperCase()}` : '';
+    const check = state.checked ? '  ·  ⚠ 왕 위협! 시간정지 — 막아라' : '';
     this.hud.text =
-      `점수 ${state.score}${judge}\n` +
+      `점수 ${state.score}${judge}${check}\n` +
       `cycle ${state.hourglass.cycle}  ·  HP ${state.hp}/${state.maxHp}  ·  ` +
       `턴:${turn}  ·  ${state.status}  ·  바닥:${this.floorMode}${paused}`;
   }

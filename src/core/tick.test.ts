@@ -124,6 +124,47 @@ describe('맨 아래 도달 — 최우선(HP 감소)', () => {
   });
 });
 
+describe('왕 위협(체크) → 모래시계 강제 정지', () => {
+  // 적 룩(2,0)이 같은 열의 내 왕(2,2)을 위협. 내 룩(5,0)으로 적 룩을 잡으면 해제 가능.
+  const setup = () =>
+    game(6, 6, [
+      ['rook', 'enemy', 2, 0],
+      ['general', 'player', 2, 2],
+      ['rook', 'player', 5, 0],
+    ]); // turn 기본 player
+
+  it('적이 왕을 잡을 자리에 있으면 checked + 하강 정지', () => {
+    // 보드 변화(무해한 cancel)로 체크 판정을 트리거.
+    const checked = tick(setup(), { dt: 0, intents: [{ t: 'cancel' }] });
+    expect(checked.state.checked).toBe(true);
+    expect(checked.events.some((e) => e.t === 'check' && e.checked)).toBe(true);
+
+    // 시간이 흘러도 cycle 증가 없음(강제 정지).
+    const frozen = tick(checked.state, { dt: checked.state.hourglass.capacity * 3 });
+    expect(frozen.state.hourglass.cycle).toBe(0);
+  });
+
+  it('위협을 제거하면 checked 해제 + 다시 흐른다', () => {
+    const checked = tick(setup(), { dt: 0, intents: [{ t: 'cancel' }] }).state;
+    expect(checked.checked).toBe(true);
+
+    // 내 룩으로 적 룩(2,0) 잡기 → 위협 해제.
+    const resolved = tick(checked, {
+      dt: 0,
+      intents: [
+        { t: 'select', pieceId: 'p-rook-0' },
+        { t: 'preview', to: { col: 2, row: 0 } },
+        { t: 'confirm' },
+      ],
+    }).state;
+    expect(resolved.checked).toBe(false);
+
+    // 모래시계 다시 진행.
+    const flow = tick(resolved, { dt: resolved.hourglass.capacity });
+    expect(flow.state.hourglass.cycle).toBe(1);
+  });
+});
+
 describe('스폰 + 결정론', () => {
   it('사이클마다 최상단 빈 열에 적이 스폰된다', () => {
     const g = game(5, 8, [['pawn', 'enemy', 2, 0]]);
