@@ -155,6 +155,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
       for (const e of r.events) {
         switch (e.t) {
           case 'selected': sfx.select(); break;
+          case 'previewed': sfx.preview(); break; // 가상이동 — 빠졌던 가운데 박자
           case 'moved': lastMovedTo = e.to; sfx.move(); break;
           case 'captured': sfx.capture(); break;
           case 'canceled': sfx.cancel(); break;

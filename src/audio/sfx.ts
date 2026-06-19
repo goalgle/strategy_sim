@@ -42,6 +42,9 @@ export class SoundFx {
   select(): void {
     this.tone(660, 55, 'square', 0.4);
   }
+  preview(): void {
+    this.tone(550, 55, 'sine', 0.45); // 가상이동(목표 클릭) — 빠졌던 가운데 박자
+  }
   move(): void {
     this.tone(440, 70, 'triangle', 0.6);
   }
