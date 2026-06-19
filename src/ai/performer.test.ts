@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { emptyGame, Placer } from '../core/setup';
 import { tick } from '../core/tick';
-import type { GameState, Intent, PieceKind, Side } from '../core/types';
-import { DEFAULT_AI_CONFIG } from './heuristic';
-import { AiPerformer } from './performer';
+import type { GameState, PieceKind, Side } from '../core/types';
+import { aiChooseMove, DEFAULT_AI_CONFIG } from './heuristic';
+import { AiPerformer, type RitualAction } from './performer';
 
 type Spec = [PieceKind, Side, number, number];
 
@@ -14,15 +14,14 @@ function game(cols: number, rows: number, specs: Spec[], turn: Side = 'enemy'): 
 }
 
 /** 연출 시퀀스를 전부 뽑아낸다(update는 호출당 0~1개 방출). */
-function drain(perf: AiPerformer): Intent[] {
-  const seq: Intent[] = [];
+function drain(perf: AiPerformer): RitualAction[] {
+  const seq: RitualAction[] = [];
   for (let i = 0; i < 100 && perf.active; i++) seq.push(...perf.update(10_000));
   return seq;
 }
 
 describe('AI 연출(AiPerformer)', () => {
-  it('탐색(취소) 후 최선수 확정으로 끝난다', () => {
-    // 여러 적 말 → 후보 다수 → 미끼(취소) + 확정.
+  it('미끼(취소) 후 commit 신호로 끝난다', () => {
     const g = game(7, 7, [
       ['rook', 'enemy', 1, 1],
       ['knight', 'enemy', 4, 1],
@@ -32,24 +31,36 @@ describe('AI 연출(AiPerformer)', () => {
     expect(perf.plan(g, DEFAULT_AI_CONFIG)).toBe(true);
 
     const seq = drain(perf);
-    expect(seq.length).toBeGreaterThanOrEqual(3);
-    expect(seq[seq.length - 1]!.t).toBe('confirm'); // 마지막은 확정
-    expect(seq.some((i) => i.t === 'cancel')).toBe(true); // 중간에 취소(미끼) 있음
-    expect(seq.filter((i) => i.t === 'select').length).toBeGreaterThanOrEqual(2);
+    expect(seq[seq.length - 1]).toBe('commit'); // 마지막은 commit 신호
+    expect(seq.some((a) => a !== 'commit' && a.t === 'cancel')).toBe(true); // 미끼 취소 있음
   });
 
-  it('연출 시퀀스를 적용하면 적이 1수 두고 턴이 넘어간다', () => {
+  it('미끼 적용 + commit(fresh)으로 적이 1수 두고 턴 전환', () => {
     const g = game(7, 7, [
       ['rook', 'enemy', 1, 1],
       ['pawn', 'enemy', 4, 1],
     ]);
     const perf = new AiPerformer();
     perf.plan(g, DEFAULT_AI_CONFIG);
-    const seq = drain(perf);
 
+    // 메인 루프 동작 모사: 미끼 인텐트는 적용, commit은 현재 상태로 fresh 적용.
     let s = g;
-    for (const intent of seq) s = tick(s, { dt: 0, intents: [intent] }).state;
-    expect(s.turn).toBe('player'); // 확정되어 턴 전환
+    for (const action of drain(perf)) {
+      if (action === 'commit') {
+        const move = aiChooseMove(s, s.turn, DEFAULT_AI_CONFIG)!;
+        s = tick(s, {
+          dt: 0,
+          intents: [
+            { t: 'select', pieceId: move.pieceId },
+            { t: 'preview', to: move.to },
+            { t: 'confirm' },
+          ],
+        }).state;
+      } else {
+        s = tick(s, { dt: 0, intents: [action] }).state;
+      }
+    }
+    expect(s.turn).toBe('player');
     expect(s.selection).toBeUndefined();
   });
 

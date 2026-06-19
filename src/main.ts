@@ -1,5 +1,5 @@
 // 브라우저 엔트리: 시작 메뉴(난이도 선택) → 게임(PixiJS 렌더 + 입력 + rAF 루프가 tick 구동) → 게임오버 → 메뉴.
-import { aiTakeTurn } from './ai/heuristic';
+import { aiChooseMove } from './ai/heuristic';
 import { AiPerformer } from './ai/performer';
 import { SoundFx } from './audio/sfx';
 import { DIFFICULTIES, type DifficultyLevel } from './config/difficulty';
@@ -135,9 +135,53 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     { signal },
   );
 
+  // 이벤트 → 사운드 + 판정 팝업.
+  const handleEvents = (events: ReturnType<typeof tick>['events']): void => {
+    let lastMovedTo: { col: number; row: number } | null = null;
+    for (const e of events) {
+      switch (e.t) {
+        case 'selected': sfx.select(); break;
+        case 'previewed': sfx.preview(); break; // 가상이동 — 가운데 박자
+        case 'moved': lastMovedTo = e.to; sfx.move(); break;
+        case 'captured': sfx.capture(); break;
+        case 'canceled': sfx.cancel(); break;
+        case 'rhythm': // 플레이어 전용: HUD + 말 위치 판정 팝업 + 사운드
+          view.lastJudge = e.judge;
+          if (lastMovedTo) view.popJudge(e.judge, lastMovedTo);
+          sfx.judge(e.judge);
+          break;
+        case 'bottomReached': sfx.damage(); break;
+        case 'spawned': sfx.spawn(); break;
+        case 'check': if (e.checked) sfx.check(); break; // 왕 위협 시작 시 경보
+        case 'gameOver': sfx.gameOver(); break;
+        default: break;
+      }
+    }
+  };
+
+  /** 적의 본 수를 현재 상태로 새로 계산해 한 번만 적용(dt:0 → 하강 끼어듦·stale 방지, 체크 재판정). */
+  const aiCommit = (): void => {
+    const move = aiChooseMove(state, state.turn, diff.ai);
+    if (move === null) {
+      state = { ...state, turn: 'player', selection: undefined }; // 둘 수 없으면 패스
+      return;
+    }
+    const r = tick(state, {
+      dt: 0,
+      intents: [
+        { t: 'select', pieceId: move.pieceId },
+        { t: 'preview', to: move.to },
+        { t: 'confirm' },
+      ],
+    });
+    state = r.state;
+    handleEvents(r.events);
+  };
+
   let acc = 0;
   let aiWait = 0;
   let ended = false;
+  let aiTurnHandled = false; // 적 턴당 1회만 두도록 가드(이중 이동 방지)
   const performer = new AiPerformer();
 
   view.app.ticker.add((ticker) => {
@@ -151,43 +195,27 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     if (dt > 0 || intents.length > 0) {
       const r = tick(state, { dt, intents });
       state = r.state;
-      let lastMovedTo: { col: number; row: number } | null = null;
-      for (const e of r.events) {
-        switch (e.t) {
-          case 'selected': sfx.select(); break;
-          case 'previewed': sfx.preview(); break; // 가상이동 — 빠졌던 가운데 박자
-          case 'moved': lastMovedTo = e.to; sfx.move(); break;
-          case 'captured': sfx.capture(); break;
-          case 'canceled': sfx.cancel(); break;
-          case 'rhythm': // 플레이어 전용: HUD + 말 위치에 판정 팝업 + 사운드
-            view.lastJudge = e.judge;
-            if (lastMovedTo) view.popJudge(e.judge, lastMovedTo);
-            sfx.judge(e.judge);
-            break;
-          case 'bottomReached': sfx.damage(); break;
-          case 'spawned': sfx.spawn(); break;
-          case 'check': if (e.checked) sfx.check(); break; // 왕 위협 시작 시 경보
-          case 'gameOver': sfx.gameOver(); break;
-          default: break;
-        }
-      }
+      handleEvents(r.events);
     }
 
-    // 적 차례: 잠깐 생각 후 연출 시작 → 반박자마다 인텐트를 큐에 흘림.
+    // 적 차례: 잠깐 생각 후 연출(미끼) → 'commit'에서 본 수 1회.
     if (state.status === 'playing' && state.turn === 'enemy') {
       if (performer.active) {
-        queue.push(...performer.update(ticker.deltaMS));
-      } else if (queue.length === 0) {
+        for (const action of performer.update(ticker.deltaMS)) {
+          if (action === 'commit') aiCommit();
+          else queue.push(action); // 미끼 인텐트(연출)
+        }
+      } else if (!aiTurnHandled && queue.length === 0) {
         aiWait += ticker.deltaMS;
         if (aiWait >= aiThinkMs) {
           aiWait = 0;
-          if (!performer.plan(state, diff.ai)) {
-            state = aiTakeTurn(state, diff.ai).state; // 둘 수 없으면 패스
-          }
+          aiTurnHandled = true; // 이 적 턴은 한 번만 처리
+          if (!performer.plan(state, diff.ai)) aiCommit(); // 둘 수 없으면(=패스) 처리
         }
       }
     } else {
       aiWait = 0;
+      aiTurnHandled = false; // 플레이어 턴 → 다음 적 턴을 위해 리셋
     }
 
     view.draw(state);
