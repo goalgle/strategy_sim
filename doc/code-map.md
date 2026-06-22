@@ -36,6 +36,8 @@ src/
     pixiBoard.ts      PixiJS 보드 렌더러(토글·하이라이트·HUD·모래시계 바·박자 펄스·판정 팝업)
   audio/
     sfx.ts            WebAudio 합성 SFX(선택/이동/잡기/취소/판정/피해/스폰/게임오버)
+  replay/
+    replay.ts           리플레이 — Recorder(입력열 기록)·runReplay·splitForPlayback·localStorage 저장
 .github/workflows/
   deploy.yml          main push 시 빌드→GitHub Pages 자동 배포
 ```
@@ -43,6 +45,7 @@ src/
 - 시작 시 **난이도 선택 메뉴**(쉬움/보통/어려움 — `DIFFICULTIES`에서 데이터 드리븐). 게임오버 시 점수 표시 + 메뉴 복귀.
 - 입력: 클릭=선택/가상이동, 재클릭=확정, 우클릭=취소, F=바닥 토글, Space=정지.
 - 적 차례는 난이도별 `ai.thinkMs` 뒤 **연출(미끼)→commit**으로 1수. commit은 `tick(dt:0)`로 fresh 적용(이중 이동 방지).
+- **리플레이**: 모든 tick 입력을 `Recorder`로 기록 → 게임오버 시 `(초기설정 + (dt,intents) 스트림)`을 localStorage 저장(최근 5개) + JSON 다운로드. 메뉴/게임오버에서 재생(입력 없이 기록 재시뮬). tick이 순수해 **bit-exact 재현**.
 
 ```
 src/
@@ -216,4 +219,5 @@ src/
 - `src/core/rhythm.test.ts` — 4단계 박자 판정·점수·처치 점수.
 - `src/ai/heuristic.test.ts` — 잡기 우선·가치·전진·위험회피·하강예측·턴/패스·결정론.
 - `src/ai/performer.test.ts` — 연출 시퀀스(미끼→commit)·턴 전환·패스.
-- 총 **69개** 통과. 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.
+- `src/replay/replay.test.ts` — 입력열 기록→재생 bit-exact 충실도·빈 틱 병합·split 등가.
+- 총 **73개** 통과. 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.
