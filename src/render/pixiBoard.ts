@@ -20,12 +20,13 @@ const GLYPH: Record<PieceKind, string> = {
   elephant: '象',
   guard: '士',
   soldier: '卒',
-  king: 'K',
-  queen: 'Q',
-  rook: 'R',
-  bishop: 'B',
-  knight: 'N',
-  pawn: 'P',
+  // 체스(적) — 유니코드 체스 기호(채워진 실루엣)
+  king: '♚',
+  queen: '♛',
+  rook: '♜',
+  bishop: '♝',
+  knight: '♞',
+  pawn: '♟',
 };
 
 const JUDGE_COLOR: Record<RhythmJudge, number> = {
@@ -224,7 +225,12 @@ export class BoardView {
 
       const t = new Text({
         text: GLYPH[p.kind],
-        style: { fill: 0x0b0e1a, fontSize: 18, fontWeight: 'bold', fontFamily: 'serif' },
+        style: {
+          fill: 0x0b0e1a,
+          fontSize: p.family === 'chess' ? 26 : 18, // 체스 기호는 키워야 원에 꽉 참
+          fontWeight: 'bold',
+          fontFamily: 'serif',
+        },
       });
       t.anchor.set(0.5);
       t.x = x;
