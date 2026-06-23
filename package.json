@@ -14,7 +14,8 @@
     "demo": "tsx src/demo/show.ts",
     "demo:descent": "tsx src/demo/descent.ts",
     "demo:play": "tsx src/demo/play.ts",
-    "demo:ai": "tsx src/demo/ai.ts"
+    "demo:ai": "tsx src/demo/ai.ts",
+    "demo:combo": "tsx src/demo/combo.ts"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

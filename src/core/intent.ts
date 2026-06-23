@@ -1,22 +1,59 @@
-// 인텐트(이동 3단계) 처리. 플레이어·AI 공용 단일 통로.
-// 설계 근거: doc/architecture.md "tick 파이프라인 → 이동 해소".
-// 점수·리듬은 이후 단계. 능동 잡기 = 이동측 승, royal 잡으면 즉시 게임오버.
+// 인텐트(이동 3단계 + 콤보) 처리. 플레이어·AI 공용 단일 통로.
+// 설계 근거: doc/architecture.md "tick 파이프라인 → 이동 해소", doc/concept.md "미션/티켓/콤보".
 import { eq } from './board';
+import { captureTargets, COMBO_MAX_MOVES } from './combo';
 import type { GameEvent } from './events';
+import { MISSION_INTERVAL, rollMission, TICKET_PER_MISSION } from './missions';
 import { legalMoves } from './pieces/registry';
 import { judgeAt, RHYTHM_SCORE } from './rhythm';
 import { applyMove } from './rules';
 import { captureScore } from './scoring';
-import type { GameState, GameStatus, Intent, OverReason, Side } from './types';
+import type { GameState, GameStatus, Intent, Mission, OverReason, PieceKind, Side } from './types';
 
 const other = (s: Side): Side => (s === 'player' ? 'enemy' : 'player');
 
-/** 한 개의 인텐트를 적용(순수). 차례(turn)·선택 상태를 검사한다. */
+function satisfies(m: Mission, ev: { movedKind?: PieceKind; capturedKind?: PieceKind }): boolean {
+  return m.kind === 'moveKind' ? ev.movedKind === m.target : ev.capturedKind === m.target;
+}
+
+/** 플레이어 행동에 미션 진행 반영 — 충족되면 티켓 +1, 미션 해제. */
+function progressMission(
+  state: GameState,
+  ev: { movedKind?: PieceKind; capturedKind?: PieceKind },
+): { tickets: number; mission?: Mission; events: GameEvent[] } {
+  if (state.mission === undefined || !satisfies(state.mission, ev)) {
+    return { tickets: state.tickets, mission: state.mission, events: [] };
+  }
+  const tickets = state.tickets + TICKET_PER_MISSION;
+  return { tickets, mission: undefined, events: [{ t: 'missionDone', tickets }] };
+}
+
+/** 플레이어 턴 종료: 턴 카운트+1, 5턴마다 미션 발생, 턴 전환, 선택·콤보 해제. */
+function endPlayerTurn(state: GameState): { state: GameState; events: GameEvent[] } {
+  const turnCount = state.turnCount + 1;
+  let mission = state.mission;
+  let rng = state.rng;
+  const events: GameEvent[] = [];
+  if (mission === undefined && turnCount % MISSION_INTERVAL === 0) {
+    const r = rollMission(rng);
+    mission = r.mission;
+    rng = r.rng;
+    events.push({ t: 'missionNew', kind: mission.kind, target: mission.target });
+  }
+  events.push({ t: 'turnChanged', turn: 'enemy' });
+  return {
+    state: { ...state, turnCount, mission, rng, turn: 'enemy', selection: undefined, combo: undefined },
+    events,
+  };
+}
+
+/** 한 개의 인텐트를 적용(순수). 차례(turn)·선택·콤보 상태를 검사한다. */
 export function applyIntent(state: GameState, intent: Intent): { state: GameState; events: GameEvent[] } {
   if (state.status === 'over') return { state, events: [] };
 
   switch (intent.t) {
     case 'select': {
+      if (state.combo !== undefined) return { state, events: [] }; // 콤보 중엔 일반 선택 불가
       const piece = state.pieces.find((p) => p.id === intent.pieceId);
       if (piece === undefined || piece.side !== state.turn) return { state, events: [] };
       const legal = legalMoves(piece, state);
@@ -29,7 +66,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
     case 'preview': {
       const sel = state.selection;
       if (sel === undefined) return { state, events: [] };
-      if (!sel.legal.some((c) => eq(c, intent.to))) return { state, events: [] }; // 불법
+      if (!sel.legal.some((c) => eq(c, intent.to))) return { state, events: [] };
       return {
         state: { ...state, selection: { ...sel, preview: intent.to } },
         events: [{ t: 'previewed', pieceId: sel.pieceId, to: intent.to }],
@@ -51,8 +88,9 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
       let status: GameStatus = state.status;
       let overReason: OverReason | undefined = state.overReason;
       let score = state.score;
+      let tickets = state.tickets;
+      let mission = state.mission;
 
-      // 점수·리듬은 플레이어 전용. AI는 항상 just 취급·무점수(판정 계산 안 함).
       if (isPlayer) {
         const j = judgeAt(state.timeMs, state.rhythm);
         events.push({ t: 'rhythm', judge: j });
@@ -84,19 +122,127 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         }
       }
 
-      const nextTurn = status === 'over' ? state.turn : other(state.turn);
-      if (status !== 'over') events.push({ t: 'turnChanged', turn: nextTurn });
+      // 미션 진행(플레이어): 이동한 말 종류 / 잡은 적 종류.
+      if (isPlayer && status !== 'over') {
+        const pm = progressMission(
+          { ...state, tickets, mission },
+          { movedKind: mover.kind, capturedKind: res.captured?.kind },
+        );
+        tickets = pm.tickets;
+        mission = pm.mission;
+        events.push(...pm.events);
+      }
 
-      return {
-        state: { ...res.state, selection: undefined, turn: nextTurn, status, overReason, score },
-        events,
-      };
+      const baseState: GameState = { ...res.state, score, tickets, mission, status, overReason };
+
+      if (status === 'over') {
+        return { state: { ...baseState, selection: undefined }, events };
+      }
+
+      // 콤보 판정(플레이어 + 잡기 성공 + 티켓 보유 + 추가 잡기 대상 있음).
+      if (isPlayer && res.captured !== undefined) {
+        const targets = captureTargets(sel.pieceId, baseState);
+        if (targets.length > 0 && tickets > 0 && COMBO_MAX_MOVES > 1) {
+          events.push({ t: 'comboStart', pieceId: sel.pieceId, targets });
+          return {
+            state: { ...baseState, selection: undefined, combo: { pieceId: sel.pieceId, targets, count: 1 } },
+            events,
+          };
+        }
+      }
+
+      // 콤보 없음 → 턴 종료.
+      if (isPlayer) {
+        const end = endPlayerTurn(baseState);
+        return { state: end.state, events: [...events, ...end.events] };
+      }
+      // 적(AI): 단순 턴 전환.
+      events.push({ t: 'turnChanged', turn: 'player' });
+      return { state: { ...baseState, selection: undefined, turn: 'player' }, events };
+    }
+
+    case 'comboTo': {
+      const combo = state.combo;
+      if (combo === undefined || state.tickets <= 0) return { state, events: [] };
+      if (!combo.targets.some((c) => eq(c, intent.to))) return { state, events: [] };
+      const mover = state.pieces.find((p) => p.id === combo.pieceId);
+      if (mover === undefined) return { state, events: [] };
+
+      const from = { ...mover.at };
+      const res = applyMove(state, combo.pieceId, intent.to);
+      const events: GameEvent[] = [{ t: 'moved', pieceId: combo.pieceId, from, to: intent.to }];
+
+      let status: GameStatus = state.status;
+      let overReason: OverReason | undefined = state.overReason;
+      let score = state.score;
+      const tickets = state.tickets - 1; // 콤보 추가 이동 = 티켓 1장
+
+      // 리듬 점수(콤보 이동도 타이밍 입력)
+      const j = judgeAt(state.timeMs, state.rhythm);
+      events.push({ t: 'rhythm', judge: j });
+      if (RHYTHM_SCORE[j] > 0) {
+        score += RHYTHM_SCORE[j];
+        events.push({ t: 'scored', total: score, delta: RHYTHM_SCORE[j], reason: 'rhythm' });
+      }
+
+      if (res.captured !== undefined) {
+        events.push({
+          t: 'captured',
+          by: combo.pieceId,
+          targetId: res.captured.id,
+          targetKind: res.captured.kind,
+          at: intent.to,
+          mode: 'active',
+        });
+        score += captureScore(res.captured.kind);
+        events.push({ t: 'scored', total: score, delta: captureScore(res.captured.kind), reason: 'capture' });
+        if (res.captured.isRoyal) {
+          status = 'over';
+          overReason = 'royal';
+          events.push({ t: 'gameOver', reason: 'royal' });
+        }
+      }
+
+      // 미션(잡은 적 종류)
+      let tk = tickets;
+      let mission = state.mission;
+      if (status !== 'over') {
+        const pm = progressMission({ ...state, tickets: tk, mission }, { capturedKind: res.captured?.kind });
+        tk = pm.tickets;
+        mission = pm.mission;
+        events.push(...pm.events);
+      }
+
+      const count = combo.count + 1;
+      events.push({ t: 'comboContinue', count, tickets: tk });
+      const baseState: GameState = { ...res.state, score, tickets: tk, mission, status, overReason };
+
+      if (status === 'over') return { state: { ...baseState, combo: undefined }, events };
+
+      // 더 이어갈 수 있나? (횟수·티켓·대상)
+      const nextTargets = captureTargets(combo.pieceId, baseState);
+      if (count < COMBO_MAX_MOVES && tk > 0 && nextTargets.length > 0) {
+        return {
+          state: { ...baseState, combo: { pieceId: combo.pieceId, targets: nextTargets, count } },
+          events,
+        };
+      }
+      // 콤보 종료 → 턴 넘김.
+      events.push({ t: 'comboEnd', count });
+      const end = endPlayerTurn(baseState);
+      return { state: end.state, events: [...events, ...end.events] };
+    }
+
+    case 'comboEnd': {
+      if (state.combo === undefined) return { state, events: [] };
+      const events: GameEvent[] = [{ t: 'comboEnd', count: state.combo.count }];
+      const end = endPlayerTurn(state);
+      return { state: end.state, events: [...events, ...end.events] };
     }
 
     case 'cancel': {
       const sel = state.selection;
       if (sel === undefined) return { state, events: [] };
-      // preview가 있으면 가상이동만 되돌림(선택 유지), 없으면 선택 자체 해제.
       const selection = sel.preview !== undefined ? { ...sel, preview: undefined } : undefined;
       return {
         state: { ...state, selection },
@@ -105,7 +251,6 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
     }
 
     case 'special':
-      // 특수기능(#2 정지 · #3 HP · #4 자동 · #5 적 말 강제이동)은 이후 단계.
       return { state, events: [] };
   }
 }

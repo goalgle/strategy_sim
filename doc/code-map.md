@@ -64,6 +64,8 @@ src/
     events.ts           GameEvent 유니온(입력/이동/리듬/점수/체크 등)
     rhythm.ts           BPM 4단계 판정(judgeAt) + RHYTHM_SCORE + 박자 펄스
     scoring.ts          처치 점수(captureScore)
+    missions.ts         미션 생성(rollMission)·라벨 — 5턴마다·완료 시 티켓
+    combo.ts            콤보 잡기 대상(captureTargets)·COMBO_MAX_MOVES
     descent.ts          일제 하강 해소(위쪽 승·맨아래 우선)
     spawn.ts            시드 기반 웨이브 스폰
     selection.ts        하강 후 진행 중 selection 재조정
@@ -161,6 +163,7 @@ src/
 - **export**: `applyIntent(state, intent) → { state, events }`.
 - **규칙**: `select`(현재 차례 말만), `preview`(합법 칸만, 보드 불변), `confirm`(능동 잡기=이동측 승, royal 잡으면 게임오버, 턴 전환), `cancel`(preview 되돌림/선택 해제). `special`은 이후 단계.
 - **점수**: `confirm`이 **플레이어**일 때만 리듬 판정(timeMs 기준)+처치 점수를 합산. AI는 항상 perfect 취급·무점수.
+- **미션/티켓/콤보**: 플레이어 확정마다 `turnCount`+1, 5턴마다 미션 발생 → 충족 시 티켓+1. 잡기 후 추가 잡기 대상+티켓 있으면 콤보(`comboTo`로 잇기, 최대 3수=티켓 2장, `comboEnd`로 종료). 인텐트 `comboTo`/`comboEnd`.
 
 ### `src/core/tick.ts`
 - **역할**: 코어 단일 진입점.
@@ -220,4 +223,5 @@ src/
 - `src/ai/heuristic.test.ts` — 잡기 우선·가치·전진·위험회피·하강예측·턴/패스·결정론.
 - `src/ai/performer.test.ts` — 연출 시퀀스(미끼→commit)·턴 전환·패스.
 - `src/replay/replay.test.ts` — 입력열 기록→재생 bit-exact 충실도·빈 틱 병합·split 등가.
-- 총 **73개** 통과. 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.
+- `src/core/mission-combo.test.ts` — turnCount·5턴 미션 발생·미션 완료 티켓·콤보 시작/이어가기/종료/티켓0.
+- 총 **80개** 통과. 실행: `npm test` · 타입체크: `npm run typecheck` · 데모: `npm run demo`, `demo:descent`, `demo:play`, `demo:ai`.

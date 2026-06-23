@@ -2,6 +2,7 @@
 // 그리드↔교차 토글은 바닥 라인만 바꾼다(말 위치는 동일 좌표).
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import { eq } from '../core/board';
+import { missionLabel } from '../core/missions';
 import { beatPhase01 } from '../core/rhythm';
 import type { Coord, GameState, PieceKind, RhythmJudge } from '../core/types';
 
@@ -179,6 +180,16 @@ export class BoardView {
   private drawHighlights(state: GameState): void {
     const g = this.highlights;
     g.clear();
+
+    // 콤보 중: 추가 잡기 대상을 노란 펄스 링으로.
+    if (state.combo) {
+      for (const cell of state.combo.targets) {
+        const { x, y } = this.center(cell.col, cell.row);
+        g.circle(x, y, CELL * 0.46).stroke({ width: 3, color: COL.preview });
+      }
+      return;
+    }
+
     const sel = state.selection;
     if (!sel) return;
     for (const cell of sel.legal) {
@@ -243,10 +254,12 @@ export class BoardView {
     const turn = state.turn === 'player' ? '플레이어' : '적';
     const paused = state.hourglass.paused ? ' ⏸' : '';
     const judge = this.lastJudge ? `  ·  ${this.lastJudge.toUpperCase()}` : '';
-    const check = state.checked ? '  ·  ⚠ 왕 위협! 시간정지 — 막아라' : '';
+    const check = state.checked ? '  ·  ⚠ 왕 위협! 시간정지' : '';
+    const combo = state.combo ? `  ·  🔥 콤보 x${state.combo.count} (티켓으로 잇기/우클릭 종료)` : '';
+    const mission = state.mission ? `  ·  미션: ${missionLabel(state.mission)}` : '';
     this.hud.text =
-      `점수 ${state.score}${judge}${check}\n` +
+      `점수 ${state.score}  ·  🎫 ${state.tickets}${judge}${check}${combo}\n` +
       `cycle ${state.hourglass.cycle}  ·  HP ${state.hp}/${state.maxHp}  ·  ` +
-      `턴:${turn}  ·  ${state.status}  ·  바닥:${this.floorMode}${paused}`;
+      `턴:${turn}${mission}${paused}`;
   }
 }

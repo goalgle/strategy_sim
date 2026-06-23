@@ -100,6 +100,8 @@ function baseState(board: Board, init: GameInit): GameState {
       badMs: init.badMs ?? RHYTHM_BAD_MS,
     },
     checked: false,
+    turnCount: 0,
+    tickets: 0,
   };
 }
 

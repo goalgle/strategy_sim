@@ -139,6 +139,12 @@ export class SoundFx {
     // 왕 위협 경보 — 높고 날카롭게
     this.tone(1320, 220, 'square', 0.6);
   }
+  combo(): void {
+    this.tone(880, 90, 'square', 0.6, 1320); // 상승 — 콤보 고조
+  }
+  ticket(): void {
+    this.tone(1050, 130, 'sine', 0.6, 1570); // 미션 완료 보상음
+  }
   judge(j: RhythmJudge): void {
     const freq: Record<RhythmJudge, number> = { perfect: 1320, good: 990, bad: 620, miss: 200 };
     this.tone(freq[j], j === 'miss' ? 170 : 110, j === 'miss' ? 'sawtooth' : 'sine', j === 'miss' ? 0.5 : 0.7);

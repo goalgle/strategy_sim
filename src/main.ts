@@ -42,6 +42,9 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
       case 'bottomReached': sfx.damage(); break;
       case 'spawned': sfx.spawn(); break;
       case 'check': if (e.checked) sfx.check(); break;
+      case 'comboStart': sfx.combo(); break;
+      case 'comboContinue': sfx.combo(); break;
+      case 'missionDone': sfx.ticket(); break;
       case 'gameOver': sfx.gameOver(); break;
       default: break;
     }
@@ -178,6 +181,16 @@ async function startGame(level: DifficultyLevel): Promise<void> {
       const rect = canvas.getBoundingClientRect();
       const cell = view.cellFromPixel(e.clientX - rect.left, e.clientY - rect.top);
       if (!cell) return;
+
+      // 콤보 중: 대상 클릭=이어 잡기, 그 외/우클릭=콤보 종료.
+      if (state.combo) {
+        if (e.button === 2) { queue.push({ t: 'comboEnd' }); return; }
+        if (e.button !== 0) return;
+        if (state.combo.targets.some((c) => eq(c, cell))) queue.push({ t: 'comboTo', to: cell });
+        else queue.push({ t: 'comboEnd' });
+        return;
+      }
+
       if (e.button === 2) { queue.push({ t: 'cancel' }); return; }
       if (e.button !== 0) return;
       const sel = state.selection;

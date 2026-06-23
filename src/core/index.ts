@@ -7,6 +7,8 @@ export * from './pieces/registry';
 export * from './rules';
 export * from './rhythm';
 export * from './scoring';
+export * from './missions';
+export * from './combo';
 export * from './events';
 export * from './descent';
 export * from './spawn';

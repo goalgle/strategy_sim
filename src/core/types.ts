@@ -105,7 +105,25 @@ export type Intent =
   | { t: 'preview'; to: Coord } // 가상 이동
   | { t: 'confirm' } // 확정
   | { t: 'cancel' } // 우클릭 취소
+  | { t: 'comboTo'; to: Coord } // 콤보: 같은 말로 추가 잡기(티켓 소모)
+  | { t: 'comboEnd' } // 콤보 종료(턴 넘김)
   | { t: 'special'; action: number; payload?: unknown }; // 특수기능(#2~#5, 이후 단계)
+
+/** 미션 — 5턴마다 발생, 완료 시 티켓. 종류는 생각날 때마다 추가. */
+export type MissionKind = 'moveKind' | 'captureKind';
+export interface Mission {
+  kind: MissionKind;
+  /** 대상 말 종류(moveKind=움직일 내 말, captureKind=잡을 적 말) */
+  target: PieceKind;
+  done: boolean;
+}
+
+/** 콤보(연속 잡기) 진행 상태. 잡기 후 추가 잡기 대상이 있으면 활성. */
+export interface Combo {
+  pieceId: string; // 연속 잡기를 잇는 말
+  targets: Coord[]; // 추가로 잡을 수 있는 칸(적이 있는 합법수)
+  count: number; // 지금까지 잡은 횟수(첫 잡기 포함)
+}
 
 /** 게임 상태. 3단계에서 turn·selection 추가(이후 rhythm·score 등 확장). */
 export interface GameState {
@@ -131,6 +149,14 @@ export interface GameState {
   rhythm: RhythmConfig;
   /** 플레이어 왕이 적 사정권(체크)인가 → true면 모래시계 강제 정지. */
   checked: boolean;
+  /** 누적 턴 수(플레이어 1수 = 1턴). 5턴마다 미션. */
+  turnCount: number;
+  /** 보유 티켓(누적). 콤보 잡기에 소모. */
+  tickets: number;
+  /** 현재 미션(없으면 undefined). */
+  mission?: Mission;
+  /** 진행 중인 콤보(연속 잡기). 없으면 일반 상태. */
+  combo?: Combo;
 }
 
 /** 말 종류별 합법 도착 좌표 생성 함수 */

@@ -1,6 +1,7 @@
 // 코어 단일 진입점(2단계 범위: 모래시계 전진 → 하강 → 스폰).
 // 인텐트(이동)·게임오버(royal by 능동잡기)·리듬·점수는 이후 단계에서 합류.
 // 설계 근거: doc/architecture.md "tick 파이프라인", "엔진 루프".
+import { captureTargets } from './combo';
 import { applyDescent } from './descent';
 import type { GameEvent } from './events';
 import { applyIntent } from './intent';
@@ -62,6 +63,10 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
     const r = reconcileSelection(s);
     s = r.state;
     events.push(...r.events);
+  }
+  // 5-1. 콤보 대상 재조정 — 하강으로 적이 움직였을 수 있음(대상 갱신, 비면 클릭으로 종료).
+  if (descended && s.combo !== undefined && s.status !== 'over') {
+    s = { ...s, combo: { ...s.combo, targets: captureTargets(s.combo.pieceId, s) } };
   }
 
   // 6. 인텐트(이동) 처리 — 순서대로
