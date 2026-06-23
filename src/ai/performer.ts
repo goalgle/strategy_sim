@@ -12,8 +12,8 @@ export type RitualAction = Intent | 'commit';
 export class AiPerformer {
   private steps: RitualAction[] = [];
   private idx = 0;
-  private timer = 0;
-  private stepMs = 250;
+  private half = 250; // 반박자(ms)
+  private nextAt = 0; // 다음 동작을 낼 sim timeMs 경계
   active = false;
 
   /** 이번 차례의 연출 시퀀스를 계획. 둘 수 있으면 true, 없으면 false(호출측이 패스). */
@@ -36,21 +36,21 @@ export class AiPerformer {
 
     this.steps = steps;
     this.idx = 0;
-    this.timer = 0;
-    this.stepMs = beatPeriodMs(state.rhythm.bpm) / 2; // 반박자마다 한 동작
+    this.half = beatPeriodMs(state.rhythm.bpm) / 2; // 반박자마다 한 동작
+    // 다음 반박자 경계부터 시작 — 음악/판정 격자에 스냅(벽시계 아님).
+    this.nextAt = (Math.floor(state.timeMs / this.half) + 1) * this.half;
     this.active = true;
     return true;
   }
 
-  /** dt 누적 후 이번 프레임에 내보낼 동작(0~1개). 마지막(commit)을 내보내면 active=false. */
-  update(dtMs: number): RitualAction[] {
+  /** 현재 sim timeMs를 받아, 반박자 격자 경계를 넘긴 동작들을 내보낸다(보통 0~1개). */
+  update(timeMs: number): RitualAction[] {
     if (!this.active) return [];
-    this.timer += dtMs;
     const out: RitualAction[] = [];
-    if (this.timer >= this.stepMs && this.idx < this.steps.length) {
-      this.timer -= this.stepMs;
+    while (this.idx < this.steps.length && timeMs >= this.nextAt) {
       out.push(this.steps[this.idx]!);
       this.idx += 1;
+      this.nextAt += this.half;
     }
     if (this.idx >= this.steps.length) this.active = false;
     return out;

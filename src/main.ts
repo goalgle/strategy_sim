@@ -158,7 +158,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   const view = new BoardView();
   await view.init(mount, state);
   view.draw(state);
-  sfx.startMusic(state.rhythm.bpm);
+  sfx.startMusic(state.rhythm.bpm, state.timeMs); // 음악을 sim 박자 격자에 정렬
 
   const ac = new AbortController();
   const { signal } = ac;
@@ -252,7 +252,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
 
     if (state.status === 'playing' && state.turn === 'enemy') {
       if (performer.active) {
-        for (const action of performer.update(ticker.deltaMS)) {
+        for (const action of performer.update(state.timeMs)) {
           if (action === 'commit') aiCommit();
           else queue.push(action);
         }
@@ -306,7 +306,7 @@ async function startReplay(replay: Replay, _idx?: number): Promise<void> {
   const view = new BoardView();
   await view.init(mount, state);
   view.draw(state);
-  sfx.startMusic(state.rhythm.bpm);
+  sfx.startMusic(state.rhythm.bpm, state.timeMs);
 
   let i = 0;
   let budget = 0;

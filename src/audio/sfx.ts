@@ -7,11 +7,12 @@ export class SoundFx {
   private master: GainNode | null = null;
   enabled = true;
 
-  // ── BGM(BPM 동기 룩어헤드 스케줄러) ──
+  // ── BGM(sim 박자 격자에 앵커된 룩어헤드 스케줄러) ──
   private musicGain: GainNode | null = null;
   private musicTimer: number | null = null;
-  private nextNoteTime = 0;
-  private step16 = 0;
+  private originAudio = 0; // startMusic 시점의 audio clock
+  private originSimMs = 0; // 그 시점의 sim timeMs(보통 0)
+  private step16abs = 0; // sim 원점부터의 절대 16분음표 인덱스
   private bpm = 120;
   musicOn = true;
 
@@ -62,21 +63,29 @@ export class SoundFx {
     if (step % 2 === 1) this.noteAt(7800, time, 18, 'square', 0.05); // 오프비트 하이햇 틱
   }
 
+  /** 절대 16분 스텝 s가 떨어질 audio clock 시각 — sim 격자에 앵커. */
+  private audioAt(s: number): number {
+    const sec16 = 60 / this.bpm / 4;
+    return this.originAudio + s * sec16 - this.originSimMs / 1000;
+  }
+
   private scheduler(): void {
     if (!this.ctx) return;
-    const sec16 = 60 / this.bpm / 4; // 16분음표 간격
-    while (this.nextNoteTime < this.ctx.currentTime + 0.2) {
-      if (this.musicOn) this.scheduleStep(this.step16, this.nextNoteTime);
-      this.nextNoteTime += sec16;
-      this.step16 = (this.step16 + 1) % 16;
+    while (this.audioAt(this.step16abs) < this.ctx.currentTime + 0.2) {
+      if (this.musicOn) this.scheduleStep(this.step16abs % 16, this.audioAt(this.step16abs));
+      this.step16abs += 1;
     }
   }
 
-  startMusic(bpm: number): void {
+  /** originSimMs = 호출 시점의 sim timeMs(보통 0). 음악 비트를 판정/펄스 격자에 정렬. */
+  startMusic(bpm: number, originSimMs = 0): void {
     if (!this.ctx || this.musicTimer !== null) return;
     this.bpm = bpm;
-    this.step16 = 0;
-    this.nextNoteTime = this.ctx.currentTime + 0.1;
+    this.originAudio = this.ctx.currentTime;
+    this.originSimMs = originSimMs;
+    const sec16 = 60 / bpm / 4;
+    // 현재 시각 직후의 첫 16분 격자 스텝부터 스케줄(과거 스텝은 건너뜀, 격자 유지).
+    this.step16abs = Math.max(0, Math.ceil((this.ctx.currentTime + 0.05 - this.audioAt(0)) / sec16));
     this.musicTimer = window.setInterval(() => this.scheduler(), 25);
   }
 
