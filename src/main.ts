@@ -155,6 +155,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   const view = new BoardView();
   await view.init(mount, state);
   view.draw(state);
+  sfx.startMusic(state.rhythm.bpm);
 
   const ac = new AbortController();
   const { signal } = ac;
@@ -197,6 +198,8 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     (e: KeyboardEvent) => {
       if (e.key === 'f' || e.key === 'F') {
         view.floorMode = view.floorMode === 'grid' ? 'intersection' : 'grid';
+      } else if (e.key === 'm' || e.key === 'M') {
+        sfx.toggleMusic();
       } else if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault();
         state = { ...state, hourglass: { ...state.hourglass, paused: !state.hourglass.paused } };
@@ -265,6 +268,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
       saveReplay(replay);
       const cleanup = () => {
         ac.abort();
+        sfx.stopMusic();
         view.app.destroy(true);
         mount.replaceChildren();
       };
@@ -289,6 +293,7 @@ async function startReplay(replay: Replay, _idx?: number): Promise<void> {
   const view = new BoardView();
   await view.init(mount, state);
   view.draw(state);
+  sfx.startMusic(state.rhythm.bpm);
 
   let i = 0;
   let budget = 0;
@@ -296,6 +301,7 @@ async function startReplay(replay: Replay, _idx?: number): Promise<void> {
   const SPEED = 1;
 
   const cleanup = () => {
+    sfx.stopMusic();
     view.app.destroy(true);
     mount.replaceChildren();
   };
