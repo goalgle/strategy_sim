@@ -11,7 +11,7 @@ export type FloorMode = 'grid' | 'intersection';
 const CELL = 40;
 const BAR_H = 12; // 모래시계 진행바
 const PAD = 6;
-const HUD_H = 46;
+const HUD_H = 92; // 최대 ~5줄(점수·진행·미션·콤보·경고)
 
 const GLYPH: Record<PieceKind, string> = {
   general: '將',
@@ -75,6 +75,11 @@ export class BoardView {
     mount.appendChild(this.app.canvas);
     this.hud.y = BAR_H + PAD + this.rows * CELL + 6;
     this.hud.x = 4;
+    // 캔버스 폭을 넘기면 자동 줄바꿈(모바일에서 미션 문구 잘림 방지).
+    this.hud.style.wordWrap = true;
+    this.hud.style.wordWrapWidth = width - 8;
+    this.hud.style.breakWords = true;
+    this.hud.style.lineHeight = 17;
     this.app.stage.addChild(
       this.floor,
       this.highlights,
@@ -254,12 +259,14 @@ export class BoardView {
     const turn = state.turn === 'player' ? '플레이어' : '적';
     const paused = state.hourglass.paused ? ' ⏸' : '';
     const judge = this.lastJudge ? `  ·  ${this.lastJudge.toUpperCase()}` : '';
-    const check = state.checked ? '  ·  ⚠ 왕 위협! 시간정지' : '';
-    const combo = state.combo ? `  ·  🔥 콤보 x${state.combo.count} (티켓으로 잇기/우클릭 종료)` : '';
-    const mission = state.mission ? `  ·  미션: ${missionLabel(state.mission)}` : '';
-    this.hud.text =
-      `점수 ${state.score}  ·  🎫 ${state.tickets}${judge}${check}${combo}\n` +
-      `cycle ${state.hourglass.cycle}  ·  HP ${state.hp}/${state.maxHp}  ·  ` +
-      `턴:${turn}${mission}${paused}`;
+    // 미션·콤보·경고는 길어서 각자 줄로 내림(모바일 잘림 방지).
+    const lines = [
+      `점수 ${state.score}  ·  🎫 ${state.tickets}${judge}`,
+      `cycle ${state.hourglass.cycle}  ·  HP ${state.hp}/${state.maxHp}  ·  턴:${turn}${paused}`,
+    ];
+    if (state.mission) lines.push(`미션: ${missionLabel(state.mission)}`);
+    if (state.combo) lines.push(`🔥 콤보 x${state.combo.count} — 티켓으로 잇기 / 우클릭 종료`);
+    if (state.checked) lines.push('⚠ 왕 위협! 시간정지 — 막아라');
+    this.hud.text = lines.join('\n');
   }
 }
