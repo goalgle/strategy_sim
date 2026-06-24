@@ -25,6 +25,7 @@ import {
   splitForPlayback,
   type Replay,
 } from './replay/replay';
+import { showHelp, showIntroIfFirst } from './ui/help';
 
 const mount = document.getElementById('app')!;
 const menuEl = document.getElementById('menu')!;
@@ -91,10 +92,19 @@ function showMenu(): void {
     btn.addEventListener('click', () => {
       sfx.unlock();
       menuEl.style.display = 'none';
-      void startGame(level);
+      // 첫 플레이면 핵심 안내(C) 먼저, 닫으면 시작.
+      showIntroIfFirst(() => void startGame(level));
     });
     menuEl.appendChild(btn);
   }
+
+  // 도움말(A) — 언제든.
+  const helpBtn = document.createElement('button');
+  helpBtn.className = 'diff-btn';
+  helpBtn.style.textAlign = 'center';
+  helpBtn.innerHTML = '<b>📖 도움말</b>';
+  helpBtn.addEventListener('click', () => showHelp());
+  menuEl.appendChild(helpBtn);
 
   const replays = loadReplays();
   if (replays.length > 0) {
