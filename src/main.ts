@@ -173,6 +173,20 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   const queue: Intent[] = [];
   const canvas = view.app.canvas;
 
+  // 모바일 컨텍스트 버튼: 선택 중=취소 / 콤보 중=콤보 종료 (터치엔 우클릭이 없음).
+  const actionBtn = document.createElement('button');
+  actionBtn.id = 'action-btn';
+  actionBtn.addEventListener(
+    'pointerdown',
+    (e) => {
+      e.preventDefault();
+      if (state.combo) queue.push({ t: 'comboEnd' });
+      else if (state.selection) queue.push({ t: 'cancel' });
+    },
+    { signal },
+  );
+  document.body.appendChild(actionBtn);
+
   // 모든 tick을 한 곳에서: 적용 + 기록 + 이벤트 처리.
   const applyTick = (input: { dt: number; intents?: Intent[] }): void => {
     const r = tick(state, input);
@@ -279,6 +293,17 @@ async function startGame(level: DifficultyLevel): Promise<void> {
 
     view.draw(state);
 
+    // 컨텍스트 버튼 토글(플레이어 차례에 선택/콤보가 있을 때만).
+    if (state.status === 'playing' && state.turn === 'player' && state.combo) {
+      actionBtn.textContent = '🔥 콤보 종료';
+      actionBtn.style.display = 'block';
+    } else if (state.status === 'playing' && state.turn === 'player' && state.selection) {
+      actionBtn.textContent = '✕ 취소';
+      actionBtn.style.display = 'block';
+    } else {
+      actionBtn.style.display = 'none';
+    }
+
     if (state.status === 'over' && !ended) {
       ended = true;
       const replay = recorder.build(initConfig, {
@@ -290,6 +315,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
       const cleanup = () => {
         ac.abort();
         sfx.stopMusic();
+        actionBtn.remove();
         view.app.destroy(true);
         mount.replaceChildren();
       };
