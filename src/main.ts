@@ -5,6 +5,7 @@ import { SoundFx } from './audio/sfx';
 import { DIFFICULTIES, type DifficultyLevel } from './config/difficulty';
 import { eq } from './core/board';
 import { STEP_MS } from './core/constants';
+import { missionLabel } from './core/missions';
 import { createStandardGame, type StandardOptions } from './core/setup';
 import { tick } from './core/tick';
 import type { GameState, Intent } from './core/types';
@@ -44,6 +45,10 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
       case 'check': if (e.checked) sfx.check(); break;
       case 'comboStart': sfx.combo(); break;
       case 'comboContinue': sfx.combo(); break;
+      case 'missionNew':
+        sfx.mission();
+        view.flashMission(missionLabel({ kind: e.kind, target: e.target, done: false }));
+        break;
       case 'missionDone': sfx.ticket(); break;
       case 'gameOver': sfx.gameOver(); break;
       default: break;

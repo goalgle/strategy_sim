@@ -60,6 +60,13 @@ export class BoardView {
   private popupLayer = new Container();
   private popups: { text: Text; coord: Coord; life: number }[] = [];
   private hud = new Text({ text: '', style: { fill: 0xcdd6f4, fontSize: 14, fontFamily: 'monospace' } });
+  // 미션 등장 배너(잠깐 번쩍였다 사라짐 — 주의 환기).
+  private missionBanner = new Text({
+    text: '',
+    style: { fill: 0xffd24a, fontSize: 20, fontWeight: 'bold', fontFamily: 'system-ui', align: 'center' },
+  });
+  private missionBg = new Graphics();
+  private missionFlashMs = 0;
   private cols = 0;
   private rows = 0;
   floorMode: FloorMode = 'intersection';
@@ -80,14 +87,49 @@ export class BoardView {
     this.hud.style.wordWrapWidth = width - 8;
     this.hud.style.breakWords = true;
     this.hud.style.lineHeight = 17;
+    this.missionBanner.anchor.set(0.5);
+    this.missionBanner.x = width / 2;
+    this.missionBanner.y = this.boardTop() + this.rows * CELL * 0.32;
+    this.missionBanner.visible = false;
     this.app.stage.addChild(
       this.floor,
       this.highlights,
       this.bar,
       this.piecesLayer,
       this.popupLayer,
+      this.missionBg,
+      this.missionBanner,
       this.hud,
     );
+  }
+
+  /** 새 미션 등장 시 호출 — 배너를 ~3초간 번쩍였다 페이드. */
+  flashMission(label: string): void {
+    this.missionBanner.text = `🎯 새 미션!  ${label}`;
+    this.missionFlashMs = 3000;
+  }
+
+  private updateMissionBanner(): void {
+    if (this.missionFlashMs <= 0) {
+      this.missionBanner.visible = false;
+      this.missionBg.visible = false;
+      return;
+    }
+    this.missionFlashMs = Math.max(0, this.missionFlashMs - this.app.ticker.deltaMS);
+    const fade = Math.min(1, this.missionFlashMs / 600); // 마지막 0.6초 페이드
+
+    const w = this.missionBanner.width + 24;
+    const h = this.missionBanner.height + 14;
+    const cx = this.missionBanner.x;
+    const cy = this.missionBanner.y;
+    this.missionBg.clear();
+    this.missionBg
+      .roundRect(cx - w / 2, cy - h / 2, w, h, 8)
+      .fill({ color: 0x161a2e, alpha: 0.92 * fade })
+      .stroke({ width: 2, color: 0xffd24a, alpha: fade });
+    this.missionBg.visible = true;
+    this.missionBanner.visible = true;
+    this.missionBanner.alpha = fade;
   }
 
   private boardTop(): number {
@@ -112,6 +154,7 @@ export class BoardView {
     this.drawBar(state);
     this.drawPieces(state);
     this.updatePopups();
+    this.updateMissionBanner();
     this.drawHud(state);
   }
 

@@ -154,6 +154,11 @@ export class SoundFx {
   ticket(): void {
     this.tone(1050, 130, 'sine', 0.6, 1570); // 미션 완료 보상음
   }
+  mission(): void {
+    // 새 미션 알림 — 2음 종소리(주의 환기)
+    this.tone(784, 120, 'triangle', 0.7); // G5
+    this.tone(1175, 220, 'triangle', 0.7); // D6
+  }
   judge(j: RhythmJudge): void {
     const freq: Record<RhythmJudge, number> = { perfect: 1320, good: 990, bad: 620, miss: 200 };
     this.tone(freq[j], j === 'miss' ? 170 : 110, j === 'miss' ? 'sawtooth' : 'sine', j === 'miss' ? 0.5 : 0.7);
