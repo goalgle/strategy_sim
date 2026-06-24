@@ -31,7 +31,7 @@ export type GameEvent =
   // 미션/티켓/콤보
   | { t: 'missionNew'; kind: MissionKind; target: PieceKind }
   | { t: 'missionDone'; tickets: number }
-  | { t: 'comboStart'; pieceId: string; targets: Coord[] }
+  | { t: 'comboStart'; pieceId: string; targets: Coord[]; tickets: number }
   | { t: 'comboContinue'; count: number; tickets: number }
   | { t: 'comboEnd'; count: number }
   // 자원/진행

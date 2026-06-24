@@ -48,6 +48,7 @@ const COL = {
   legal: 0x57e08a,
   capture: 0xff7a7a,
   preview: 0xffe14a,
+  combo: 0xff5a2a,
   bar: 0x6b8cff,
 };
 
@@ -60,13 +61,14 @@ export class BoardView {
   private popupLayer = new Container();
   private popups: { text: Text; coord: Coord; life: number }[] = [];
   private hud = new Text({ text: '', style: { fill: 0xcdd6f4, fontSize: 14, fontFamily: 'monospace' } });
-  // 미션 등장 배너(잠깐 번쩍였다 사라짐 — 주의 환기).
-  private missionBanner = new Text({
+  // 알림 배너(미션·콤보 공용) — 잠깐 번쩍였다 사라짐.
+  private banner = new Text({
     text: '',
     style: { fill: 0xffd24a, fontSize: 20, fontWeight: 'bold', fontFamily: 'system-ui', align: 'center' },
   });
-  private missionBg = new Graphics();
-  private missionFlashMs = 0;
+  private bannerBg = new Graphics();
+  private bannerFlashMs = 0;
+  private bannerColor = 0xffd24a;
   private cols = 0;
   private rows = 0;
   floorMode: FloorMode = 'intersection';
@@ -87,49 +89,61 @@ export class BoardView {
     this.hud.style.wordWrapWidth = width - 8;
     this.hud.style.breakWords = true;
     this.hud.style.lineHeight = 17;
-    this.missionBanner.anchor.set(0.5);
-    this.missionBanner.x = width / 2;
-    this.missionBanner.y = this.boardTop() + this.rows * CELL * 0.32;
-    this.missionBanner.visible = false;
+    this.banner.anchor.set(0.5);
+    this.banner.x = width / 2;
+    this.banner.y = this.boardTop() + this.rows * CELL * 0.32;
+    this.banner.visible = false;
     this.app.stage.addChild(
       this.floor,
       this.highlights,
       this.bar,
       this.piecesLayer,
       this.popupLayer,
-      this.missionBg,
-      this.missionBanner,
+      this.bannerBg,
+      this.banner,
       this.hud,
     );
   }
 
-  /** 새 미션 등장 시 호출 — 배너를 ~3초간 번쩍였다 페이드. */
-  flashMission(label: string): void {
-    this.missionBanner.text = `🎯 새 미션!  ${label}`;
-    this.missionFlashMs = 3000;
+  /** 알림 배너 — ~2.4초간 번쩍였다 페이드. 미션/콤보 공용. */
+  private flashBanner(text: string, color: number): void {
+    this.banner.text = text;
+    this.banner.style.fill = color;
+    this.bannerColor = color;
+    this.bannerFlashMs = 2400;
   }
 
-  private updateMissionBanner(): void {
-    if (this.missionFlashMs <= 0) {
-      this.missionBanner.visible = false;
-      this.missionBg.visible = false;
+  /** 새 미션 등장. */
+  flashMission(label: string): void {
+    this.flashBanner(`🎯 새 미션!  ${label}`, 0xffd24a);
+  }
+
+  /** 콤보 시작 — 한 번 더 잡을 수 있음. */
+  flashCombo(tickets: number): void {
+    this.flashBanner(`🔥 콤보!  빨간 칸 클릭해 또 잡기 (티켓 ${tickets})`, 0xff6b4a);
+  }
+
+  private updateBanner(): void {
+    if (this.bannerFlashMs <= 0) {
+      this.banner.visible = false;
+      this.bannerBg.visible = false;
       return;
     }
-    this.missionFlashMs = Math.max(0, this.missionFlashMs - this.app.ticker.deltaMS);
-    const fade = Math.min(1, this.missionFlashMs / 600); // 마지막 0.6초 페이드
+    this.bannerFlashMs = Math.max(0, this.bannerFlashMs - this.app.ticker.deltaMS);
+    const fade = Math.min(1, this.bannerFlashMs / 600); // 마지막 0.6초 페이드
 
-    const w = this.missionBanner.width + 24;
-    const h = this.missionBanner.height + 14;
-    const cx = this.missionBanner.x;
-    const cy = this.missionBanner.y;
-    this.missionBg.clear();
-    this.missionBg
+    const w = this.banner.width + 24;
+    const h = this.banner.height + 14;
+    const cx = this.banner.x;
+    const cy = this.banner.y;
+    this.bannerBg.clear();
+    this.bannerBg
       .roundRect(cx - w / 2, cy - h / 2, w, h, 8)
       .fill({ color: 0x161a2e, alpha: 0.92 * fade })
-      .stroke({ width: 2, color: 0xffd24a, alpha: fade });
-    this.missionBg.visible = true;
-    this.missionBanner.visible = true;
-    this.missionBanner.alpha = fade;
+      .stroke({ width: 2, color: this.bannerColor, alpha: fade });
+    this.bannerBg.visible = true;
+    this.banner.visible = true;
+    this.banner.alpha = fade;
   }
 
   private boardTop(): number {
@@ -154,7 +168,7 @@ export class BoardView {
     this.drawBar(state);
     this.drawPieces(state);
     this.updatePopups();
-    this.updateMissionBanner();
+    this.updateBanner();
     this.drawHud(state);
   }
 
@@ -229,11 +243,13 @@ export class BoardView {
     const g = this.highlights;
     g.clear();
 
-    // 콤보 중: 추가 잡기 대상을 노란 펄스 링으로.
+    // 콤보 중: 추가 잡기 대상을 빨강 펄스 이중 링으로(선택 하이라이트와 확실히 구분).
     if (state.combo) {
+      const pulse = 0.5 + 0.5 * Math.sin(state.timeMs / 110); // 0~1 맥동
       for (const cell of state.combo.targets) {
         const { x, y } = this.center(cell.col, cell.row);
-        g.circle(x, y, CELL * 0.46).stroke({ width: 3, color: COL.preview });
+        g.circle(x, y, CELL * 0.46).stroke({ width: 4, color: COL.combo });
+        g.circle(x, y, CELL * (0.5 + 0.12 * pulse)).stroke({ width: 2, color: COL.combo, alpha: 0.4 + 0.5 * pulse });
       }
       return;
     }

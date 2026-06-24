@@ -43,7 +43,10 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
       case 'bottomReached': sfx.damage(); break;
       case 'spawned': sfx.spawn(); break;
       case 'check': if (e.checked) sfx.check(); break;
-      case 'comboStart': sfx.combo(); break;
+      case 'comboStart':
+        sfx.combo();
+        view.flashCombo(e.tickets);
+        break;
       case 'comboContinue': sfx.combo(); break;
       case 'missionNew':
         sfx.mission();

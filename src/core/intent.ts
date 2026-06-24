@@ -143,7 +143,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
       if (isPlayer && res.captured !== undefined) {
         const targets = captureTargets(sel.pieceId, baseState);
         if (targets.length > 0 && tickets > 0 && COMBO_MAX_MOVES > 1) {
-          events.push({ t: 'comboStart', pieceId: sel.pieceId, targets });
+          events.push({ t: 'comboStart', pieceId: sel.pieceId, targets, tickets });
           return {
             state: { ...baseState, selection: undefined, combo: { pieceId: sel.pieceId, targets, count: 1 } },
             events,
