@@ -2,13 +2,20 @@
 // 설계 근거: doc/architecture.md "tick 파이프라인 → 이동 해소", doc/concept.md "미션/티켓/콤보".
 import { eq } from './board';
 import { captureTargets, COMBO_MAX_MOVES } from './combo';
+import {
+  ABILITY_AUTO3,
+  ABILITY_AUTO3_COST,
+  ABILITY_FREEZE,
+  ABILITY_FREEZE_COST,
+  ABILITY_FREEZE_MS,
+} from './constants';
 import type { GameEvent } from './events';
 import { MISSION_INTERVAL, rollMission, TICKET_PER_MISSION } from './missions';
 import { legalMoves } from './pieces/registry';
 import { judgeAt, RHYTHM_SCORE } from './rhythm';
 import { applyMove } from './rules';
 import { captureScore } from './scoring';
-import type { GameState, GameStatus, Intent, Mission, OverReason, PieceKind, Side } from './types';
+import type { Coord, GameState, GameStatus, Intent, Mission, OverReason, PieceKind, Side } from './types';
 
 const other = (s: Side): Side => (s === 'player' ? 'enemy' : 'player');
 
@@ -45,6 +52,38 @@ function endPlayerTurn(state: GameState): { state: GameState; events: GameEvent[
     state: { ...state, turnCount, mission, rng, turn: 'enemy', selection: undefined, combo: undefined },
     events,
   };
+}
+
+/** 자동 1수(자동 3수 스킬용) — 리듬 없음. 처치 점수·미션만 반영. */
+function resolveAutoMove(state: GameState, pieceId: string, to: Coord): { state: GameState; events: GameEvent[] } {
+  const mover = state.pieces.find((p) => p.id === pieceId);
+  if (mover === undefined || mover.side !== 'player') return { state, events: [] };
+  const from = { ...mover.at };
+  const res = applyMove(state, pieceId, to);
+  const events: GameEvent[] = [{ t: 'moved', pieceId, from, to }];
+  let score = state.score;
+  let tickets = state.tickets;
+  let mission = state.mission;
+  let status: GameStatus = state.status;
+  let overReason: OverReason | undefined = state.overReason;
+
+  if (res.captured !== undefined) {
+    events.push({ t: 'captured', by: pieceId, targetId: res.captured.id, targetKind: res.captured.kind, at: to, mode: 'active' });
+    score += captureScore(res.captured.kind);
+    events.push({ t: 'scored', total: score, delta: captureScore(res.captured.kind), reason: 'capture' });
+    if (res.captured.isRoyal) {
+      status = 'over';
+      overReason = 'royal';
+      events.push({ t: 'gameOver', reason: 'royal' });
+    }
+  }
+  if (status !== 'over') {
+    const pm = progressMission({ ...state, tickets, mission }, { movedKind: mover.kind, capturedKind: res.captured?.kind });
+    tickets = pm.tickets;
+    mission = pm.mission;
+    events.push(...pm.events);
+  }
+  return { state: { ...res.state, score, tickets, mission, status, overReason }, events };
 }
 
 /** 한 개의 인텐트를 적용(순수). 차례(turn)·선택·콤보 상태를 검사한다. */
@@ -250,7 +289,43 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
       };
     }
 
-    case 'special':
+    case 'special': {
+      // #2 모래시계 정지 — 언제든(실시간 압박 방어). 티켓 소모, 중복 불가.
+      if (intent.action === ABILITY_FREEZE) {
+        if (state.tickets < ABILITY_FREEZE_COST || state.hourglass.freezeMs > 0) return { state, events: [] };
+        const tickets = state.tickets - ABILITY_FREEZE_COST;
+        return {
+          state: { ...state, tickets, hourglass: { ...state.hourglass, freezeMs: ABILITY_FREEZE_MS } },
+          events: [{ t: 'frozen', ms: ABILITY_FREEZE_MS, tickets }],
+        };
+      }
+      // #4 자동 3수 — 플레이어 차례, 콤보 아님. main이 휴리스틱으로 계산한 수 목록을 payload로.
+      if (intent.action === ABILITY_AUTO3) {
+        if (state.turn !== 'player' || state.combo !== undefined) return { state, events: [] };
+        const moves = intent.payload as { pieceId: string; to: Coord }[] | undefined;
+        if (moves === undefined || moves.length === 0 || state.tickets < ABILITY_AUTO3_COST) {
+          return { state, events: [] };
+        }
+        let s: GameState = { ...state, tickets: state.tickets - ABILITY_AUTO3_COST, selection: undefined };
+        const events: GameEvent[] = [];
+        let applied = 0;
+        for (const m of moves) {
+          if (s.status === 'over') break;
+          const r = resolveAutoMove(s, m.pieceId, m.to);
+          if (r.events.length === 0) continue; // 무효 수 건너뜀
+          s = r.state;
+          events.push(...r.events);
+          applied += 1;
+        }
+        events.unshift({ t: 'auto3', moves: applied, tickets: s.tickets });
+        if (s.status !== 'over') {
+          const end = endPlayerTurn(s);
+          s = end.state;
+          events.push(...end.events);
+        }
+        return { state: s, events };
+      }
       return { state, events: [] };
+    }
   }
 }

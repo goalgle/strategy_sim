@@ -10,3 +10,11 @@ export const DEFAULT_BPM = 120;
 export const RHYTHM_PERFECT_MS = 55;
 export const RHYTHM_GOOD_MS = 110;
 export const RHYTHM_BAD_MS = 180;
+
+// 특수기능
+export const ABILITY_FREEZE = 2; // #2 모래시계 정지
+export const ABILITY_AUTO3 = 4; // #4 자동 3수
+export const ABILITY_FREEZE_MS = 5000; // 정지 지속
+export const ABILITY_FREEZE_COST = 1; // 티켓
+export const ABILITY_AUTO3_COST = 2; // 티켓
+export const ABILITY_AUTO3_MOVES = 3;

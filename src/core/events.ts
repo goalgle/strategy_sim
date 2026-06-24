@@ -34,6 +34,9 @@ export type GameEvent =
   | { t: 'comboStart'; pieceId: string; targets: Coord[]; tickets: number }
   | { t: 'comboContinue'; count: number; tickets: number }
   | { t: 'comboEnd'; count: number }
+  // 특수기능
+  | { t: 'frozen'; ms: number; tickets: number } // #2 모래시계 정지
+  | { t: 'auto3'; moves: number; tickets: number } // #4 자동 3수
   // 자원/진행
   | { t: 'hpChanged'; hp: number; delta: number }
   | { t: 'check'; checked: boolean } // 왕 위협 시작/해제(모래시계 강제 정지)

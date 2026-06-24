@@ -4,8 +4,16 @@ import { AiPerformer } from './ai/performer';
 import { SoundFx } from './audio/sfx';
 import { DIFFICULTIES, type DifficultyLevel } from './config/difficulty';
 import { eq } from './core/board';
-import { STEP_MS } from './core/constants';
+import {
+  ABILITY_AUTO3,
+  ABILITY_AUTO3_COST,
+  ABILITY_AUTO3_MOVES,
+  ABILITY_FREEZE,
+  ABILITY_FREEZE_COST,
+  STEP_MS,
+} from './core/constants';
 import { missionLabel } from './core/missions';
+import { applyMove } from './core/rules';
 import { createStandardGame, type StandardOptions } from './core/setup';
 import { tick } from './core/tick';
 import type { GameState, Intent } from './core/types';
@@ -53,6 +61,8 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
         view.flashMission(missionLabel({ kind: e.kind, target: e.target, done: false }));
         break;
       case 'missionDone': sfx.ticket(); break;
+      case 'frozen': sfx.freeze(); break;
+      case 'auto3': sfx.auto(); break;
       case 'gameOver': sfx.gameOver(); break;
       default: break;
     }
@@ -187,6 +197,39 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   );
   document.body.appendChild(actionBtn);
 
+  // 특수기능 버튼(#2 정지, #4 자동3수) — 티켓 소모. 하단 양쪽.
+  const freezeBtn = document.createElement('button');
+  freezeBtn.className = 'ability-btn';
+  freezeBtn.style.left = '12px';
+  freezeBtn.textContent = `⏸ 정지 🎫${ABILITY_FREEZE_COST}`;
+  freezeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); queue.push({ t: 'special', action: ABILITY_FREEZE }); }, { signal });
+
+  const auto3Btn = document.createElement('button');
+  auto3Btn.className = 'ability-btn';
+  auto3Btn.style.right = '12px';
+  auto3Btn.textContent = `🤖 자동3수 🎫${ABILITY_AUTO3_COST}`;
+  auto3Btn.addEventListener(
+    'pointerdown',
+    (e) => {
+      e.preventDefault();
+      if (state.turn !== 'player' || state.combo || state.tickets < ABILITY_AUTO3_COST) return;
+      // 휴리스틱으로 최선 수를 시뮬해 목록 산출(코어는 데이터로 받아 실행).
+      let sim = state;
+      const moves: { pieceId: string; to: { col: number; row: number } }[] = [];
+      for (let i = 0; i < ABILITY_AUTO3_MOVES; i++) {
+        const m = aiChooseMove(sim, 'player', diff.ai);
+        if (!m) break;
+        moves.push(m);
+        const res = applyMove(sim, m.pieceId, m.to);
+        sim = res.state;
+        if (res.captured?.isRoyal) break;
+      }
+      if (moves.length > 0) queue.push({ t: 'special', action: ABILITY_AUTO3, payload: moves });
+    },
+    { signal },
+  );
+  document.body.append(freezeBtn, auto3Btn);
+
   // 모든 tick을 한 곳에서: 적용 + 기록 + 이벤트 처리.
   const applyTick = (input: { dt: number; intents?: Intent[] }): void => {
     const r = tick(state, input);
@@ -304,6 +347,17 @@ async function startGame(level: DifficultyLevel): Promise<void> {
       actionBtn.style.display = 'none';
     }
 
+    // 특수기능 버튼: 게임 중엔 항상 보이되 발동 가능 여부에 따라 흐림.
+    const playable = state.status === 'playing';
+    freezeBtn.style.display = playable ? 'block' : 'none';
+    auto3Btn.style.display = playable ? 'block' : 'none';
+    const canFreeze = playable && state.tickets >= ABILITY_FREEZE_COST && state.hourglass.freezeMs <= 0;
+    const canAuto3 = playable && state.turn === 'player' && !state.combo && state.tickets >= ABILITY_AUTO3_COST;
+    freezeBtn.style.opacity = canFreeze ? '1' : '0.4';
+    auto3Btn.style.opacity = canAuto3 ? '1' : '0.4';
+    freezeBtn.disabled = !canFreeze;
+    auto3Btn.disabled = !canAuto3;
+
     if (state.status === 'over' && !ended) {
       ended = true;
       const replay = recorder.build(initConfig, {
@@ -316,6 +370,8 @@ async function startGame(level: DifficultyLevel): Promise<void> {
         ac.abort();
         sfx.stopMusic();
         actionBtn.remove();
+        freezeBtn.remove();
+        auto3Btn.remove();
         view.app.destroy(true);
         mount.replaceChildren();
       };

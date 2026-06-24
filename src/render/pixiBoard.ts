@@ -275,8 +275,15 @@ export class BoardView {
     // 모래시계 진행바
     g.rect(0, 0, w, BAR_H).fill(0x202544);
     const frac = Math.min(1, state.hourglass.progress / state.hourglass.capacity);
-    const barColor = state.checked ? COL.capture : state.hourglass.paused ? 0x888888 : COL.bar;
-    g.rect(0, 0, w * frac, BAR_H).fill({ color: barColor }); // 체크 시 빨강(정지)
+    const frozen = state.hourglass.freezeMs > 0;
+    const barColor = state.checked
+      ? COL.capture
+      : frozen
+        ? 0x66e0ff // 정지 중 = 청록
+        : state.hourglass.paused
+          ? 0x888888
+          : COL.bar;
+    g.rect(0, 0, w * frac, BAR_H).fill({ color: barColor });
     // 박자 펄스(우상단): 정각에 가장 크고 밝게 → 플레이어가 타이밍 맞추는 기준
     const phase = beatPhase01(state.timeMs, state.rhythm.bpm); // 0=정각
     const r = 3 + (1 - phase) * (BAR_H * 0.5);

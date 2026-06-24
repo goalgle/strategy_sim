@@ -72,8 +72,10 @@ export interface Hourglass {
   progress: number;
   /** 몇 번째 뒤집힘 — 사이클 카운터(난이도·스폰 구동) */
   cycle: number;
-  /** 정지 기능(액션 #2) 발동 시 true */
+  /** 수동 정지(Space) 시 true */
   paused: boolean;
+  /** 특수기능 #2 정지 남은 시간 ms(>0이면 하강 멈춤, tick마다 감소) */
+  freezeMs: number;
 }
 
 export type GameStatus = 'playing' | 'over';

@@ -159,6 +159,14 @@ export class SoundFx {
     this.tone(784, 120, 'triangle', 0.7); // G5
     this.tone(1175, 220, 'triangle', 0.7); // D6
   }
+  freeze(): void {
+    this.tone(440, 320, 'sine', 0.6, 110); // 하강 글리산도 — 얼어붙는 느낌
+  }
+  auto(): void {
+    this.tone(660, 70, 'square', 0.5);
+    this.tone(990, 70, 'square', 0.5);
+    this.tone(1320, 130, 'square', 0.5); // 상승 3음 — 자동 처리
+  }
   judge(j: RhythmJudge): void {
     const freq: Record<RhythmJudge, number> = { perfect: 1320, good: 990, bad: 620, miss: 200 };
     this.tone(freq[j], j === 'miss' ? 170 : 110, j === 'miss' ? 'sawtooth' : 'sine', j === 'miss' ? 0.5 : 0.7);

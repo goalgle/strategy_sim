@@ -29,9 +29,10 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
   // 리듬 시계 전진(모래시계 정지와 무관하게 흐름).
   let s: GameState = { ...state, timeMs: state.timeMs + input.dt };
 
-  // 2~4. 모래시계 전진 → 하강 → 스폰. 단 체크(왕 위협) 상태면 강제 정지.
+  // 2~4. 모래시계 전진 → 하강 → 스폰. 정지(Space)·체크(왕 위협)·특수기능 정지(freeze) 시 멈춤.
+  const frozen = s.hourglass.freezeMs > 0;
   let descended = false;
-  if (!s.hourglass.paused && !state.checked && s.hourglass.capacity > 0) {
+  if (!s.hourglass.paused && !state.checked && !frozen && s.hourglass.capacity > 0) {
     let { progress, cycle } = s.hourglass;
     progress += input.dt;
 
@@ -56,6 +57,11 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
     }
 
     s = { ...s, hourglass: { ...s.hourglass, progress, cycle } };
+  }
+
+  // 정지(freeze) 타이머 감소 — 리듬 시계와 무관하게 실시간으로.
+  if (s.hourglass.freezeMs > 0) {
+    s = { ...s, hourglass: { ...s.hourglass, freezeMs: Math.max(0, s.hourglass.freezeMs - input.dt) } };
   }
 
   // 5. selection 재조정 — 하강으로 보드가 바뀐 경우만

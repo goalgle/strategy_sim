@@ -86,6 +86,7 @@ function baseState(board: Board, init: GameInit): GameState {
       progress: 0,
       cycle: 0,
       paused: false,
+      freezeMs: 0,
     },
     rng: makeRng(init.seed ?? DEFAULT_SEED),
     status: 'playing',
