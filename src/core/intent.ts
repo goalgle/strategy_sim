@@ -5,10 +5,15 @@ import { captureTargets, COMBO_MAX_MOVES } from './combo';
 import {
   ABILITY_AUTO3,
   ABILITY_AUTO3_COST,
+  ABILITY_FORCE,
+  ABILITY_FORCE_COST,
   ABILITY_FREEZE,
   ABILITY_FREEZE_COST,
   ABILITY_FREEZE_MS,
+  ABILITY_PUSH,
+  ABILITY_PUSH_COST_HP,
 } from './constants';
+import { pushEnemiesUp } from './descent';
 import type { GameEvent } from './events';
 import { MISSION_INTERVAL, rollMission, TICKET_PER_MISSION } from './missions';
 import { legalMoves } from './pieces/registry';
@@ -298,6 +303,46 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
           state: { ...state, tickets, hourglass: { ...state.hourglass, freezeMs: ABILITY_FREEZE_MS } },
           events: [{ t: 'frozen', ms: ABILITY_FREEZE_MS, tickets }],
         };
+      }
+      // #3 밀어내기 — HP 소모. 적 전체 한 칸 위로. 콤보 중 불가, HP는 최소 1 남김.
+      if (intent.action === ABILITY_PUSH) {
+        if (state.combo !== undefined || state.hp - ABILITY_PUSH_COST_HP < 1) return { state, events: [] };
+        const push = pushEnemiesUp(state);
+        const hp = state.hp - ABILITY_PUSH_COST_HP;
+        return {
+          state: { ...push.state, hp },
+          events: [{ t: 'hpChanged', hp, delta: -ABILITY_PUSH_COST_HP }, ...push.events],
+        };
+      }
+      // #5 적 말 강제이동 — 티켓 소모. 적 말 하나를 그 말의 합법수 내로(main이 payload 전달).
+      if (intent.action === ABILITY_FORCE) {
+        if (state.turn !== 'player' || state.combo !== undefined || state.tickets < ABILITY_FORCE_COST) {
+          return { state, events: [] };
+        }
+        const p = intent.payload as { pieceId: string; to: Coord } | undefined;
+        if (p === undefined) return { state, events: [] };
+        const piece = state.pieces.find((x) => x.id === p.pieceId && x.side === 'enemy');
+        if (piece === undefined || !legalMoves(piece, state).some((c) => eq(c, p.to))) {
+          return { state, events: [] };
+        }
+        const tickets = state.tickets - ABILITY_FORCE_COST;
+        const from = { ...piece.at };
+        const res = applyMove(state, p.pieceId, p.to);
+        const events: GameEvent[] = [
+          { t: 'forced', pieceId: p.pieceId, to: p.to, tickets },
+          { t: 'moved', pieceId: p.pieceId, from, to: p.to },
+        ];
+        let status: GameStatus = state.status;
+        let overReason: OverReason | undefined = state.overReason;
+        if (res.captured !== undefined) {
+          events.push({ t: 'captured', by: p.pieceId, targetId: res.captured.id, targetKind: res.captured.kind, at: p.to, mode: 'active' });
+          if (res.captured.isRoyal) {
+            status = 'over';
+            overReason = 'royal';
+            events.push({ t: 'gameOver', reason: 'royal' });
+          }
+        }
+        return { state: { ...res.state, tickets, status, overReason }, events };
       }
       // #4 자동 3수 — 플레이어 차례, 콤보 아님. main이 휴리스틱으로 계산한 수 목록을 payload로.
       if (intent.action === ABILITY_AUTO3) {

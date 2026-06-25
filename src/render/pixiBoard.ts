@@ -74,6 +74,8 @@ export class BoardView {
   floorMode: FloorMode = 'intersection';
   /** 마지막 리듬 판정(HUD 표시용). main이 이벤트로 갱신. */
   lastJudge: RhythmJudge | null = null;
+  /** #5 강제이동 타겟팅 — 선택한 적 말과 이동 가능 칸(main이 설정). */
+  forceHighlight: { pieceId: string; targets: Coord[] } | null = null;
 
   async init(mount: HTMLElement, state: GameState): Promise<void> {
     this.cols = state.board.cols;
@@ -105,8 +107,8 @@ export class BoardView {
     );
   }
 
-  /** 알림 배너 — ~2.4초간 번쩍였다 페이드. 미션/콤보 공용. */
-  private flashBanner(text: string, color: number): void {
+  /** 알림 배너 — ~2.4초간 번쩍였다 페이드. 미션/콤보/안내 공용. */
+  flashBanner(text: string, color: number): void {
     this.banner.text = text;
     this.banner.style.fill = color;
     this.bannerColor = color;
@@ -242,6 +244,20 @@ export class BoardView {
   private drawHighlights(state: GameState): void {
     const g = this.highlights;
     g.clear();
+
+    // #5 강제이동 타겟팅: 선택한 적 말 + 이동 가능 칸을 보라색으로.
+    if (this.forceHighlight) {
+      const src = state.pieces.find((p) => p.id === this.forceHighlight!.pieceId);
+      if (src) {
+        const c = this.center(src.at.col, src.at.row);
+        g.circle(c.x, c.y, CELL * 0.46).stroke({ width: 3, color: COL.palace });
+      }
+      for (const cell of this.forceHighlight.targets) {
+        const { x, y } = this.center(cell.col, cell.row);
+        g.circle(x, y, CELL * 0.18).fill({ color: COL.palace, alpha: 0.8 });
+      }
+      return;
+    }
 
     // 콤보 중: 추가 잡기 대상을 빨강 펄스 이중 링으로(선택 하이라이트와 확실히 구분).
     if (state.combo) {

@@ -80,3 +80,28 @@ export function applyDescent(state: GameState): { state: GameState; events: Game
     events,
   };
 }
+
+/**
+ * #3 밀어내기 — 적 말 전체를 한 칸 위로(row-1). 하강의 반대.
+ * 위쪽부터 처리(topmost 먼저 비켜 공간 확보). 천장(row 0)·점유 칸이면 그대로.
+ */
+export function pushEnemiesUp(state: GameState): { state: GameState; events: GameEvent[] } {
+  const pieces: Piece[] = state.pieces.map((p) => ({ ...p, at: { ...p.at } }));
+  const occupied = (col: number, row: number): boolean =>
+    pieces.some((p) => p.at.col === col && p.at.row === row);
+
+  const order = pieces
+    .filter((p) => p.side === 'enemy')
+    .sort((a, b) => a.at.row - b.at.row || a.at.col - b.at.col)
+    .map((p) => p.id);
+
+  let count = 0;
+  for (const id of order) {
+    const e = pieces.find((p) => p.id === id)!;
+    const newRow = e.at.row - 1;
+    if (newRow < 0 || occupied(e.at.col, newRow)) continue; // 천장·막힘 → 그대로
+    e.at = { col: e.at.col, row: newRow };
+    count += 1;
+  }
+  return { state: { ...state, pieces }, events: [{ t: 'pushed', count }] };
+}

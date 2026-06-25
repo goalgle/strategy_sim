@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ABILITY_AUTO3, ABILITY_FREEZE, ABILITY_FREEZE_MS } from './constants';
+import { ABILITY_AUTO3, ABILITY_FORCE, ABILITY_FREEZE, ABILITY_FREEZE_MS, ABILITY_PUSH } from './constants';
+import { pieceAt } from './board';
 import { applyIntent } from './intent';
 import { emptyGame, Placer } from './setup';
 import { tick } from './tick';
@@ -88,5 +89,74 @@ describe('#4 자동 3수', () => {
     });
     expect(r.state.status).toBe('over');
     expect(r.state.overReason).toBe('royal');
+  });
+});
+
+describe('#3 밀어내기(HP 소모)', () => {
+  it('HP 2 소모 + 적 전체 한 칸 위로', () => {
+    const g = game(5, 6, [
+      ['pawn', 'enemy', 1, 3],
+      ['pawn', 'enemy', 3, 4],
+    ], { hp: 10 });
+    const r = applyIntent(g, { t: 'special', action: ABILITY_PUSH });
+    expect(r.state.hp).toBe(8);
+    expect(pieceAt({ col: 1, row: 2 }, r.state)?.kind).toBe('pawn'); // 3→2
+    expect(pieceAt({ col: 3, row: 3 }, r.state)?.kind).toBe('pawn'); // 4→3
+    expect(r.events.some((e) => e.t === 'pushed')).toBe(true);
+  });
+
+  it('천장(row 0)·막힌 적은 그대로', () => {
+    const g = game(5, 6, [
+      ['pawn', 'enemy', 1, 0], // 천장
+      ['rook', 'enemy', 2, 1],
+      ['rook', 'enemy', 2, 2], // 위가 막힘(2,1)
+    ], { hp: 10 });
+    const r = applyIntent(g, { t: 'special', action: ABILITY_PUSH });
+    expect(pieceAt({ col: 1, row: 0 }, r.state)).toBeDefined(); // 천장 그대로
+    expect(pieceAt({ col: 2, row: 0 }, r.state)?.kind).toBe('rook'); // 1→0
+    expect(pieceAt({ col: 2, row: 1 }, r.state)?.kind).toBe('rook'); // 2→1 (앞이 비켜서)
+  });
+
+  it('HP가 부족하면(소모 후 1 미만) 발동 안 함', () => {
+    const g = game(5, 6, [['pawn', 'enemy', 1, 3]], { hp: 2 });
+    const r = applyIntent(g, { t: 'special', action: ABILITY_PUSH });
+    expect(r.state.hp).toBe(2);
+    expect(r.events).toHaveLength(0);
+  });
+});
+
+describe('#5 적 말 강제이동', () => {
+  it('티켓 1 소모 + 적 말을 합법수로 이동', () => {
+    const g = game(5, 6, [['rook', 'enemy', 2, 0]], { tickets: 1 });
+    const r = applyIntent(g, {
+      t: 'special',
+      action: ABILITY_FORCE,
+      payload: { pieceId: 'e-rook-0', to: { col: 2, row: 3 } },
+    });
+    expect(r.state.tickets).toBe(0);
+    expect(pieceAt({ col: 2, row: 3 }, r.state)?.id).toBe('e-rook-0');
+    expect(r.state.turn).toBe('player'); // 턴 안 넘어감
+    expect(r.events.some((e) => e.t === 'forced')).toBe(true);
+  });
+
+  it('불법 이동이면 발동 안 함', () => {
+    const g = game(5, 6, [['rook', 'enemy', 2, 0]], { tickets: 1 });
+    const r = applyIntent(g, {
+      t: 'special',
+      action: ABILITY_FORCE,
+      payload: { pieceId: 'e-rook-0', to: { col: 3, row: 1 } }, // 룩 대각 = 불법
+    });
+    expect(r.state.tickets).toBe(1);
+    expect(r.events).toHaveLength(0);
+  });
+
+  it('티켓 없으면 발동 안 함', () => {
+    const g = game(5, 6, [['rook', 'enemy', 2, 0]], { tickets: 0 });
+    const r = applyIntent(g, {
+      t: 'special',
+      action: ABILITY_FORCE,
+      payload: { pieceId: 'e-rook-0', to: { col: 2, row: 3 } },
+    });
+    expect(r.events).toHaveLength(0);
   });
 });

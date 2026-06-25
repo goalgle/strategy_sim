@@ -13,8 +13,12 @@ export const RHYTHM_BAD_MS = 180;
 
 // 특수기능
 export const ABILITY_FREEZE = 2; // #2 모래시계 정지
+export const ABILITY_PUSH = 3; // #3 HP 소모 밀어내기
 export const ABILITY_AUTO3 = 4; // #4 자동 3수
+export const ABILITY_FORCE = 5; // #5 적 말 강제이동
 export const ABILITY_FREEZE_MS = 5000; // 정지 지속
 export const ABILITY_FREEZE_COST = 1; // 티켓
 export const ABILITY_AUTO3_COST = 2; // 티켓
 export const ABILITY_AUTO3_MOVES = 3;
+export const ABILITY_PUSH_COST_HP = 2; // HP
+export const ABILITY_FORCE_COST = 1; // 티켓

@@ -37,6 +37,8 @@ export type GameEvent =
   // 특수기능
   | { t: 'frozen'; ms: number; tickets: number } // #2 모래시계 정지
   | { t: 'auto3'; moves: number; tickets: number } // #4 자동 3수
+  | { t: 'pushed'; count: number } // #3 밀어내기(적 위로)
+  | { t: 'forced'; pieceId: string; to: Coord; tickets: number } // #5 적 말 강제이동
   // 자원/진행
   | { t: 'hpChanged'; hp: number; delta: number }
   | { t: 'check'; checked: boolean } // 왕 위협 시작/해제(모래시계 강제 정지)

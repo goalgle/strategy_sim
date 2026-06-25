@@ -167,6 +167,12 @@ export class SoundFx {
     this.tone(990, 70, 'square', 0.5);
     this.tone(1320, 130, 'square', 0.5); // 상승 3음 — 자동 처리
   }
+  push(): void {
+    this.tone(300, 200, 'sawtooth', 0.7, 700); // 위로 솟는 — 밀어내기
+  }
+  force(): void {
+    this.tone(520, 120, 'triangle', 0.6, 360); // 끌어당김
+  }
   judge(j: RhythmJudge): void {
     const freq: Record<RhythmJudge, number> = { perfect: 1320, good: 990, bad: 620, miss: 200 };
     this.tone(freq[j], j === 'miss' ? 170 : 110, j === 'miss' ? 'sawtooth' : 'sine', j === 'miss' ? 0.5 : 0.7);
