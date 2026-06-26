@@ -31,6 +31,7 @@ import {
   type Replay,
 } from './replay/replay';
 import { showHelp, showIntroIfFirst } from './ui/help';
+import { preventMobileZoom } from './ui/touch';
 
 const mount = document.getElementById('app')!;
 const menuEl = document.getElementById('menu')!;
@@ -514,4 +515,5 @@ function showReplayBadge(onExit: () => void): HTMLElement {
   return badge;
 }
 
+preventMobileZoom();
 showMenu();
