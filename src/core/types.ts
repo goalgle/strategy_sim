@@ -124,7 +124,8 @@ export type Intent =
   | { t: 'cancel' } // 우클릭 취소
   | { t: 'comboTo'; to: Coord } // 콤보: 같은 말로 추가 잡기(티켓 소모)
   | { t: 'comboEnd' } // 콤보 종료(턴 넘김)
-  | { t: 'special'; action: number; payload?: unknown }; // 특수기능(#2~#5, 이후 단계)
+  | { t: 'special'; action: number; payload?: unknown } // 특수기능(#2~#5, 이후 단계)
+  | { t: 'pickReward'; index: number }; // 보상 카드 2장 중 선택
 
 /** 미션 — 5턴마다 발생, 완료 시 티켓. 종류는 생각날 때마다 추가. */
 export type MissionKind = 'moveKind' | 'captureKind';
@@ -141,6 +142,19 @@ export interface Combo {
   targets: Coord[]; // 추가로 잡을 수 있는 칸(적이 있는 합법수)
   count: number; // 지금까지 잡은 횟수(첫 잡기 포함)
 }
+
+/** 시작 시점 플레이어 말의 원위치 명부(리젠 대상·원위치 추적). 게임 중 불변. */
+export interface RosterEntry {
+  id: string;
+  kind: PieceKind;
+  col: number;
+  row: number;
+}
+
+/** 보상 카드 한 장 — 버프(말 종류 강화) 또는 리젠(잃은 특정 말 부활). */
+export type RewardCard =
+  | { type: 'buff'; buff: BuffKind }
+  | { type: 'regen'; pieceId: string; label: string }; // label 예: '좌측 마'
 
 /** 게임 상태. 3단계에서 turn·selection 추가(이후 rhythm·score 등 확장). */
 export interface GameState {
@@ -174,6 +188,12 @@ export interface GameState {
   mission?: Mission;
   /** 진행 중인 콤보(연속 잡기). 없으면 일반 상태. */
   combo?: Combo;
+  /** 시작 시점 플레이어 말 명부(원위치) — 리젠 카드의 부활 위치. */
+  roster: RosterEntry[];
+  /** 지급한 보상 카드 수(누적) — 다음 임계 계산. */
+  rewardCount: number;
+  /** 제시 중인 보상 카드(있으면 선택 대기 → 하강 정지). 2장 중 1장 pickReward. */
+  reward?: { options: RewardCard[] };
 }
 
 /** 말 종류별 합법 도착 좌표 생성 함수 */

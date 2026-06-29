@@ -10,6 +10,7 @@ export * from './scoring';
 export * from './missions';
 export * from './combo';
 export * from './buffs';
+export * from './rewards';
 export * from './events';
 export * from './descent';
 export * from './spawn';

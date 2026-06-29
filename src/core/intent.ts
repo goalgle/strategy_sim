@@ -1,6 +1,7 @@
 // 인텐트(이동 3단계 + 콤보) 처리. 플레이어·AI 공용 단일 통로.
 // 설계 근거: doc/architecture.md "tick 파이프라인 → 이동 해소", doc/concept.md "미션/티켓/콤보".
 import { eq } from './board';
+import { grantPlayerBuffs } from './buffs';
 import { captureTargets, COMBO_MAX_MOVES } from './combo';
 import {
   ABILITY_AUTO3,
@@ -17,6 +18,7 @@ import { pushEnemiesUp } from './descent';
 import type { GameEvent } from './events';
 import { MISSION_INTERVAL, rollMission, TICKET_PER_MISSION } from './missions';
 import { legalMoves } from './pieces/registry';
+import { applyRegen } from './rewards';
 import { judgeAt, RHYTHM_SCORE } from './rhythm';
 import { applyMove } from './rules';
 import { captureScore } from './scoring';
@@ -84,7 +86,8 @@ function resolveAutoMove(state: GameState, pieceId: string, to: Coord): { state:
     events.push({ t: 'captured', by: pieceId, targetId: c.id, targetKind: c.kind, at: { col: c.at.col, row: c.at.row }, mode: 'active' });
     score += captureScore(c.kind);
     events.push({ t: 'scored', total: score, delta: captureScore(c.kind), reason: 'capture' });
-    if (c.isRoyal) {
+    if (c.isRoyal && c.side === 'player') {
+      // 디펜스 게임 — 내 왕(장)이 잡혀야 패배. 적 왕 잡기는 점수만, 종료 없음.
       status = 'over';
       overReason = 'royal';
       events.push({ t: 'gameOver', reason: 'royal' });
@@ -105,6 +108,8 @@ function resolveAutoMove(state: GameState, pieceId: string, to: Coord): { state:
 /** 한 개의 인텐트를 적용(순수). 차례(turn)·선택·콤보 상태를 검사한다. */
 export function applyIntent(state: GameState, intent: Intent): { state: GameState; events: GameEvent[] } {
   if (state.status === 'over') return { state, events: [] };
+  // 보상 카드 제시 중에는 선택(pickReward)만 받는다 — 그 외 입력은 무시(게임 대기).
+  if (state.reward !== undefined && intent.t !== 'pickReward') return { state, events: [] };
 
   switch (intent.t) {
     case 'select': {
@@ -171,7 +176,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
           score += cScore;
           events.push({ t: 'scored', total: score, delta: cScore, reason: 'capture' });
         }
-        if (c.isRoyal) {
+        if (c.isRoyal && c.side === 'player') {
           status = 'over';
           overReason = 'royal';
           events.push({ t: 'gameOver', reason: 'royal' });
@@ -256,7 +261,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         });
         score += captureScore(c.kind);
         events.push({ t: 'scored', total: score, delta: captureScore(c.kind), reason: 'capture' });
-        if (c.isRoyal) {
+        if (c.isRoyal && c.side === 'player') {
           status = 'over';
           overReason = 'royal';
           events.push({ t: 'gameOver', reason: 'royal' });
@@ -356,7 +361,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         let overReason: OverReason | undefined = state.overReason;
         if (res.captured !== undefined) {
           events.push({ t: 'captured', by: p.pieceId, targetId: res.captured.id, targetKind: res.captured.kind, at: p.to, mode: 'active' });
-          if (res.captured.isRoyal) {
+          if (res.captured.isRoyal && res.captured.side === 'player') {
             status = 'over';
             overReason = 'royal';
             events.push({ t: 'gameOver', reason: 'royal' });
@@ -391,6 +396,22 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         return { state: s, events };
       }
       return { state, events: [] };
+    }
+
+    case 'pickReward': {
+      const reward = state.reward;
+      if (reward === undefined) return { state, events: [] };
+      const card = reward.options[intent.index];
+      if (card === undefined) return { state, events: [] };
+      // 버프 = 말 종류 전체 강화 / 리젠 = 잃은 말 원위치 부활. 보상 해제·카운트 증가(임계 상승).
+      const applied =
+        card.type === 'buff'
+          ? { ...state, pieces: grantPlayerBuffs(state.pieces, [card.buff]) }
+          : applyRegen(state, card.pieceId);
+      return {
+        state: { ...applied, reward: undefined, rewardCount: state.rewardCount + 1 },
+        events: [{ t: 'rewardPicked', card }],
+      };
     }
   }
 }

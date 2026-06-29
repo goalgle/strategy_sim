@@ -16,7 +16,7 @@ import {
   ABILITY_PUSH_COST_HP,
   STEP_MS,
 } from './core/constants';
-import { parseBuffs } from './core/buffs';
+import { BUFFS, parseBuffs } from './core/buffs';
 import { missionLabel } from './core/missions';
 import { legalMoves } from './core/pieces/registry';
 import { applyMove } from './core/rules';
@@ -74,6 +74,8 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
       case 'auto3': sfx.auto(); break;
       case 'pushed': sfx.push(); break;
       case 'forced': sfx.force(); break;
+      case 'rewardOffered': sfx.mission(); view.flashBanner('🎁 보상 카드 도착!', 0xffd24a); break;
+      case 'rewardPicked': sfx.ticket(); break;
       case 'gameOver': sfx.gameOver(); break;
       default: break;
     }
@@ -192,6 +194,8 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     goodMs: diff.rhythm.goodMs,
     badMs: diff.rhythm.badMs,
     playerBuffs,
+    // 매 판 다른 진형(체스 랜덤 배치)·미션 — 시드를 리플레이 init에 기록해 재현 보장.
+    seed: Math.floor(Math.random() * 0xffffffff),
   };
   let state: GameState = createStandardGame(initConfig);
   const recorder = new Recorder();
@@ -268,6 +272,55 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     if (moves.length > 0) queue.push({ t: 'special', action: ABILITY_AUTO3, payload: moves });
   });
   document.body.appendChild(abilityBar);
+
+  // 보상 카드 오버레이 — state.reward 있으면 중앙에 표시, 카드 클릭 = pickReward(코어가 적용).
+  const rewardOverlay = document.createElement('div');
+  rewardOverlay.id = 'reward-overlay';
+  document.body.appendChild(rewardOverlay);
+  let rewardKey = '';
+  const syncReward = (): void => {
+    const r = state.reward;
+    if (!r) {
+      if (rewardOverlay.style.display !== 'none') {
+        rewardOverlay.style.display = 'none';
+        rewardKey = '';
+      }
+      return;
+    }
+    const key = r.options.map((o) => (o.type === 'buff' ? `b:${o.buff}` : `r:${o.pieceId}`)).join(',');
+    if (key !== rewardKey) {
+      rewardKey = key;
+      rewardOverlay.innerHTML = '';
+      const title = document.createElement('div');
+      title.className = 'reward-title';
+      title.textContent = r.options.length > 1 ? '🎁 보상 카드 — 1장 선택' : '🎁 보상 카드';
+      rewardOverlay.appendChild(title);
+      const sub = document.createElement('div');
+      sub.className = 'reward-sub';
+      sub.textContent = '선택하는 동안 시간이 멈춥니다';
+      rewardOverlay.appendChild(sub);
+      const cards = document.createElement('div');
+      cards.className = 'reward-cards';
+      r.options.forEach((o, i) => {
+        // 버프카드 = 능력 강화 / 리젠카드 = 잃은 말 부활.
+        const badge = o.type === 'buff' ? BUFFS[o.buff].badge : '♻';
+        const name = o.type === 'buff' ? BUFFS[o.buff].label : o.label;
+        const desc = o.type === 'buff' ? BUFFS[o.buff].desc : '잃어버린 말을 원래 자리에 되살립니다.';
+        const tag = o.type === 'buff' ? '버프카드' : '리젠카드';
+        const card = document.createElement('button');
+        card.className = 'reward-card';
+        card.innerHTML =
+          `<div class="reward-tag">${tag}</div>` +
+          `<div class="reward-badge">${badge}</div>` +
+          `<div class="reward-name">${name}</div>` +
+          `<div class="reward-desc">${desc}</div>`;
+        card.addEventListener('pointerdown', (e) => { e.preventDefault(); queue.push({ t: 'pickReward', index: i }); }, { signal });
+        cards.appendChild(card);
+      });
+      rewardOverlay.appendChild(cards);
+    }
+    rewardOverlay.style.display = 'flex';
+  };
 
   // 모든 tick을 한 곳에서: 적용 + 기록 + 이벤트 처리.
   const applyTick = (input: { dt: number; intents?: Intent[] }): void => {
@@ -380,7 +433,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     const intents = queue.splice(0, queue.length);
     if (dt > 0 || intents.length > 0) applyTick({ dt, intents });
 
-    if (state.status === 'playing' && state.turn === 'enemy') {
+    if (state.status === 'playing' && state.turn === 'enemy' && !state.reward) {
       if (performer.active) {
         for (const action of performer.update(state.timeMs)) {
           if (action === 'commit') aiCommit();
@@ -400,6 +453,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     }
 
     view.draw(state);
+    syncReward();
 
     // 컨텍스트 버튼 토글(선택/콤보/강제이동 중일 때).
     if (forceMode) {
@@ -441,6 +495,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
         sfx.stopMusic();
         actionBtn.remove();
         abilityBar.remove();
+        rewardOverlay.remove();
         view.app.destroy(true);
         mount.replaceChildren();
       };

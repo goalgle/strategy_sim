@@ -80,15 +80,17 @@ describe('#4 자동 3수', () => {
     expect(r.events).toHaveLength(0);
   });
 
-  it('royal 잡으면 게임오버(턴 안 넘김)', () => {
+  it('자동 3수로 적 왕을 잡아도 게임은 계속(디펜스) — 점수만', () => {
     const g = game(5, 5, [['rook', 'player', 0, 4], ['king', 'enemy', 0, 0]], { tickets: 2 });
     const r = applyIntent(g, {
       t: 'special',
       action: ABILITY_AUTO3,
       payload: [{ pieceId: 'p-rook-0', to: { col: 0, row: 0 } }],
     });
-    expect(r.state.status).toBe('over');
-    expect(r.state.overReason).toBe('royal');
+    expect(r.state.status).toBe('playing'); // 종료 안 됨
+    expect(r.state.overReason).toBeUndefined();
+    expect(r.state.pieces.some((p) => p.kind === 'king')).toBe(false); // 적 왕 제거
+    expect(r.state.score).toBeGreaterThan(0);
   });
 });
 

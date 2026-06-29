@@ -81,7 +81,7 @@ describe('이동 3단계 인텐트', () => {
     expect(res.events.some((e) => e.t === 'captured' && e.mode === 'active')).toBe(true);
   });
 
-  it('confirm으로 royal 잡으면 즉시 게임오버, 턴 안 넘어감', () => {
+  it('적 왕(king)을 잡아도 게임은 계속(디펜스) — 점수만, 턴 넘어감', () => {
     const g = game(5, 5, [
       ['rook', 'player', 2, 2],
       ['king', 'enemy', 2, 0],
@@ -91,9 +91,30 @@ describe('이동 3단계 인텐트', () => {
       { t: 'preview', to: { col: 2, row: 0 } },
       { t: 'confirm' },
     ]);
+    expect(s.status).toBe('playing'); // 종료 안 됨
+    expect(s.overReason).toBeUndefined();
+    expect(s.turn).toBe('enemy'); // 턴 정상 전환
+    expect(pieceAt({ col: 2, row: 0 }, s)?.id).toBe('p-rook-0'); // 적 왕 제거, 룩이 차지
+    expect(s.score).toBeGreaterThan(0); // 처치 점수 획득
+  });
+
+  it('내 장(general)이 잡히면 게임오버', () => {
+    const g = game(
+      5,
+      5,
+      [
+        ['rook', 'enemy', 2, 2],
+        ['general', 'player', 2, 0],
+      ],
+      'enemy',
+    );
+    const s = run(g, [
+      { t: 'select', pieceId: 'e-rook-0' },
+      { t: 'preview', to: { col: 2, row: 0 } },
+      { t: 'confirm' },
+    ]);
     expect(s.status).toBe('over');
     expect(s.overReason).toBe('royal');
-    expect(s.turn).toBe('player');
   });
 
   it('cancel: preview 있으면 가상이동만 되돌림(선택 유지)', () => {

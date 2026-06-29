@@ -209,9 +209,21 @@ describe('잡기(applyMove)', () => {
 describe('표준 진형(createStandardGame)', () => {
   const g = createStandardGame();
 
-  it('양 진영 16개씩, 총 32개', () => {
+  it('플레이어 16개 · 적은 9열 꽉(뒷줄 9 + 폰 9 = 18)', () => {
     expect(g.pieces.filter((p) => p.side === 'player')).toHaveLength(16);
-    expect(g.pieces.filter((p) => p.side === 'enemy')).toHaveLength(16);
+    expect(g.pieces.filter((p) => p.side === 'enemy')).toHaveLength(18);
+  });
+
+  it('체스 진형: 루크 양끝·여왕 중앙·왕 고정, 뒷줄 9칸 빈틈 없음', () => {
+    const back = g.pieces.filter((p) => p.side === 'enemy' && p.at.row === 0);
+    expect(back).toHaveLength(9); // col 0..8 모두 채움
+    const at = (col: number) => back.find((p) => p.at.col === col)!.kind;
+    expect(at(0)).toBe('rook');
+    expect(at(8)).toBe('rook');
+    expect(at(4)).toBe('queen'); // 중앙
+    expect(at(3)).toBe('king'); // 여왕 왼쪽 고정
+    // 나머지는 비숍/나이트만
+    for (const col of [1, 2, 5, 6, 7]) expect(['bishop', 'knight']).toContain(at(col));
   });
 
   it('장(general)은 궁성 중앙, 적 킹은 royal', () => {
@@ -221,6 +233,14 @@ describe('표준 진형(createStandardGame)', () => {
     const king = g.pieces.find((p) => p.kind === 'king')!;
     expect(king.side).toBe('enemy');
     expect(king.isRoyal).toBe(true);
+  });
+
+  it('시드가 같으면 진형도 동일(결정론), 다르면 달라질 수 있음', () => {
+    const a = createStandardGame({ seed: 42 });
+    const b = createStandardGame({ seed: 42 });
+    const backKinds = (s: typeof a) =>
+      s.pieces.filter((p) => p.side === 'enemy' && p.at.row === 0).map((p) => p.kind);
+    expect(backKinds(a)).toEqual(backKinds(b));
   });
 
   it('모든 말의 합법수 생성이 예외 없이 동작', () => {

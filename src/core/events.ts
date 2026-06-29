@@ -1,7 +1,7 @@
 // tick이 반환하는 이벤트(직접 emit 안 함 → 순수성 유지). 렌더·SFX·UI가 구독.
 // 2단계 범위의 이벤트만 정의 — 이후 단계(이동/리듬/점수)에서 확장.
 // 설계 근거: doc/architecture.md "이벤트 목록 (GameEvent)".
-import type { Coord, MissionKind, OverReason, PieceKind, RhythmJudge, Side } from './types';
+import type { Coord, MissionKind, OverReason, PieceKind, RewardCard, RhythmJudge, Side } from './types';
 
 export type GameEvent =
   // 입력/이동 3단계
@@ -40,6 +40,9 @@ export type GameEvent =
   | { t: 'auto3'; moves: number; tickets: number } // #4 자동 3수
   | { t: 'pushed'; count: number } // #3 밀어내기(적 위로)
   | { t: 'forced'; pieceId: string; to: Coord; tickets: number } // #5 적 말 강제이동
+  // 보상 카드(버프/리젠)
+  | { t: 'rewardOffered'; options: RewardCard[] } // 점수 임계 도달 → 2장 제시
+  | { t: 'rewardPicked'; card: RewardCard } // 1장 선택 적용
   // 자원/진행
   | { t: 'hpChanged'; hp: number; delta: number }
   | { t: 'check'; checked: boolean } // 왕 위협 시작/해제(모래시계 강제 정지)

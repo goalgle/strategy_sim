@@ -5,6 +5,7 @@ import { captureTargets } from './combo';
 import { applyDescent } from './descent';
 import type { GameEvent } from './events';
 import { applyIntent } from './intent';
+import { maybeOfferReward } from './rewards';
 import { reconcileSelection } from './selection';
 import { spawnWave } from './spawn';
 import { isPlayerInCheck } from './threats';
@@ -32,7 +33,8 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
   // 2~4. 모래시계 전진 → 하강 → 스폰. 정지(Space)·체크(왕 위협)·특수기능 정지(freeze) 시 멈춤.
   const frozen = s.hourglass.freezeMs > 0;
   let descended = false;
-  if (!s.hourglass.paused && !state.checked && !frozen && s.hourglass.capacity > 0) {
+  // 보상 카드 선택 중에는 하강 정지(압박 없이 고르게).
+  if (!s.hourglass.paused && !state.checked && !frozen && state.reward === undefined && s.hourglass.capacity > 0) {
     let { progress, cycle } = s.hourglass;
     progress += input.dt;
 
@@ -82,6 +84,13 @@ export function tick(state: GameState, input: TickInput): { state: GameState; ev
     const r = applyIntent(s, intent);
     s = r.state;
     events.push(...r.events);
+  }
+
+  // 6-1. 보상 카드 — 점수가 임계 도달했으면 제시(다음 틱부터 하강 정지).
+  if (s.status !== 'over' && intents.length > 0) {
+    const off = maybeOfferReward(s);
+    s = off.state;
+    events.push(...off.events);
   }
 
   // 7. 체크 상태 갱신(보드가 바뀐 경우만 재판정). 변하면 이벤트로 알림.

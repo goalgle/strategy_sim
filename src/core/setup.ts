@@ -12,7 +12,7 @@ import {
   RHYTHM_GOOD_MS,
   RHYTHM_PERFECT_MS,
 } from './constants';
-import { makeRng } from './rng';
+import { makeRng, nextInt } from './rng';
 import type { BuffKind, Board, Family, GameState, Piece, PieceKind, Side } from './types';
 
 const CHESS_KINDS = new Set<PieceKind>([
@@ -104,6 +104,8 @@ function baseState(board: Board, init: GameInit): GameState {
     checked: false,
     turnCount: 0,
     tickets: 0,
+    roster: [],
+    rewardCount: 0,
   };
 }
 
@@ -165,20 +167,45 @@ export function createStandardGame(opts: StandardOptions = {}): GameState {
   placer.place('cannon', 'player', 7, back - 2);
   for (const col of [0, 2, 4, 6, 8]) placer.place('soldier', 'player', col, back - 3);
 
-  // ── 상단: 체스(enemy) 2줄, 킹을 가운데 열(4)에 맞춤(col 8은 비움) ──
-  const chessBack: PieceKind[] = [
-    'rook',
-    'knight',
-    'bishop',
-    'queen',
-    'king',
-    'bishop',
-    'knight',
-    'rook',
-  ];
-  chessBack.forEach((kind, col) => placer.place(kind, 'enemy', col, 0));
-  for (let col = 0; col < 8; col++) placer.place('pawn', 'enemy', col, 1);
+  // ── 상단: 체스(enemy) 2줄 — 보드 폭(9열) 전체를 채운다. ──
+  // 루크는 양끝 고정, 여왕은 중앙, 왕은 여왕 왼쪽 고정. 나머지 칸은 비숍/나이트를
+  // 시드 RNG로 랜덤 배치(부족한 칸은 랜덤 마이너로 채워 한 칸도 비지 않게).
+  const queenCol = Math.floor(cols / 2); // 9 → 4
+  const kingCol = queenCol - 1; // 여왕 왼쪽
+  const fixedBack = new Map<number, PieceKind>([
+    [0, 'rook'],
+    [cols - 1, 'rook'],
+    [queenCol, 'queen'],
+    [kingCol, 'king'],
+  ]);
+  const freeCols: number[] = [];
+  for (let col = 0; col < cols; col++) if (!fixedBack.has(col)) freeCols.push(col);
 
-  const pieces = grantPlayerBuffs(placer.build(), opts.playerBuffs ?? []);
-  return { ...base, pieces };
+  let rng = base.rng;
+  const minors: PieceKind[] = ['bishop', 'bishop', 'knight', 'knight'];
+  while (minors.length < freeCols.length) {
+    const r = nextInt(rng, 2);
+    rng = r.state;
+    minors.push(r.value === 0 ? 'bishop' : 'knight');
+  }
+  for (let i = minors.length - 1; i > 0; i--) {
+    // Fisher–Yates(시드) — 같은 시드면 같은 배치(리플레이 결정론).
+    const r = nextInt(rng, i + 1);
+    rng = r.state;
+    [minors[i], minors[r.value]] = [minors[r.value]!, minors[i]!];
+  }
+
+  for (let col = 0; col < cols; col++) {
+    const kind = fixedBack.get(col) ?? minors[freeCols.indexOf(col)]!;
+    placer.place(kind, 'enemy', col, 0);
+  }
+  for (let col = 0; col < cols; col++) placer.place('pawn', 'enemy', col, 1);
+
+  const built = placer.build();
+  // 리젠 명부: 시작 시점 플레이어 말의 원위치(id·종류·좌표).
+  const roster = built
+    .filter((p) => p.side === 'player')
+    .map((p) => ({ id: p.id, kind: p.kind, col: p.at.col, row: p.at.row }));
+  const pieces = grantPlayerBuffs(built, opts.playerBuffs ?? []);
+  return { ...base, rng, pieces, roster };
 }
