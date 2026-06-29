@@ -24,6 +24,7 @@ export function showHelp(): void {
   card.className = 'info-card';
   card.innerHTML = `
     <h2>도움말</h2>
+    <p style="text-align:center; opacity:0.85;">장기가 처음이라면 메뉴의 <b>🎓 장기 튜토리얼</b>에서 1:1로 룰부터 익혀보세요.</p>
     <h3>🎯 목표</h3>
     <p>위에서 내려오는 적을 막아내며 <b>점수</b>를 쌓는다. 끝은 없고 <b>죽기 전까지 최대 점수</b>가 목표.</p>
     <h3>🕹️ 조작</h3>

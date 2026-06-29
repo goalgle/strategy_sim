@@ -133,6 +133,7 @@ export function applyRegen(state: GameState, pieceId: string): GameState {
  * 이미 제시 중·종료·임계 미달이면 그대로. 줄 카드(버프·리젠)가 하나도 없으면 제시 안 함.
  */
 export function maybeOfferReward(state: GameState): { state: GameState; events: GameEvent[] } {
+  if (state.mode === 'janggi') return { state, events: [] }; // 장기 튜토리얼엔 보상 없음
   if (state.reward !== undefined || state.status !== 'playing') return { state, events: [] };
   if (state.score < rewardThreshold(state.rewardCount)) return { state, events: [] };
 

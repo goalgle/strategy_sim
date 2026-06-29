@@ -1,5 +1,5 @@
 // 브라우저 엔트리: 시작 메뉴(난이도·리플레이) → 게임(렌더+입력+rAF 루프가 tick 구동, 기록) → 게임오버(리플레이 저장) → 메뉴.
-import { aiChooseMove } from './ai/heuristic';
+import { aiChooseMove, type AiConfig } from './ai/heuristic';
 import { AiPerformer } from './ai/performer';
 import { SoundFx } from './audio/sfx';
 import { DIFFICULTIES, type DifficultyLevel } from './config/difficulty';
@@ -20,7 +20,7 @@ import { BUFFS, parseBuffs } from './core/buffs';
 import { missionLabel } from './core/missions';
 import { legalMoves } from './core/pieces/registry';
 import { applyMove } from './core/rules';
-import { createStandardGame, type StandardOptions } from './core/setup';
+import { createJanggiGame, createStandardGame, type StandardOptions } from './core/setup';
 import { tick } from './core/tick';
 import type { GameState, Intent } from './core/types';
 import { BoardView } from './render/pixiBoard';
@@ -109,6 +109,18 @@ function showMenu(): void {
     });
     menuEl.appendChild(btn);
   }
+
+  // 장기 튜토리얼 — 룰을 1:1로 먼저 익히기.
+  const tutBtn = document.createElement('button');
+  tutBtn.className = 'diff-btn';
+  tutBtn.style.textAlign = 'center';
+  tutBtn.innerHTML = '<b>🎓 장기 튜토리얼</b><span>장기 룰을 1:1로 먼저 익히기</span>';
+  tutBtn.addEventListener('click', () => {
+    sfx.unlock();
+    menuEl.style.display = 'none';
+    void startJanggi();
+  });
+  menuEl.appendChild(tutBtn);
 
   // 도움말(A) — 언제든.
   const helpBtn = document.createElement('button');
@@ -505,6 +517,113 @@ async function startGame(level: DifficultyLevel): Promise<void> {
         [
           { label: '리플레이 보기', onClick: () => { cleanup(); void startReplay(replay); } },
           { label: 'JSON 저장', onClick: () => { downloadReplay(replay); cleanup(); showMenu(); } },
+          { label: '메뉴로', onClick: () => { cleanup(); showMenu(); } },
+        ],
+      );
+    }
+  });
+}
+
+// ── 장기 튜토리얼(1:1, 메타 없음) — 룰 학습용. 언제든 "본 게임 시작"으로 이탈. ──
+async function startJanggi(): Promise<void> {
+  let state: GameState = createJanggiGame();
+  const view = new BoardView();
+  await view.init(mount, state);
+  view.draw(state);
+
+  const ac = new AbortController();
+  const { signal } = ac;
+  const queue: Intent[] = [];
+  const canvas = view.app.canvas;
+  let ended = false;
+
+  const cleanup = (): void => {
+    ac.abort();
+    toMainBtn.remove();
+    actionBtn.remove();
+    view.app.destroy(true);
+    mount.replaceChildren();
+  };
+
+  // 언제든 장기를 멈추고 본 게임(난이도 메뉴)으로.
+  const toMainBtn = document.createElement('button');
+  toMainBtn.id = 'tomain-btn';
+  toMainBtn.textContent = '본 게임 시작 ▶';
+  toMainBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); cleanup(); showMenu(); }, { signal });
+  document.body.appendChild(toMainBtn);
+
+  // 선택 중 취소 버튼(모바일).
+  const actionBtn = document.createElement('button');
+  actionBtn.id = 'action-btn';
+  actionBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (state.selection) queue.push({ t: 'cancel' }); }, { signal });
+  document.body.appendChild(actionBtn);
+
+  const applyTick = (input: { dt: number; intents?: Intent[] }): void => {
+    const r = tick(state, input);
+    state = r.state;
+    handleEvents(view, r.events);
+  };
+
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
+  canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (state.turn !== 'player' || state.status !== 'playing') return;
+    const rect = canvas.getBoundingClientRect();
+    const cell = view.cellFromPixel(e.clientX - rect.left, e.clientY - rect.top);
+    if (!cell) return;
+    if (e.button === 2) { queue.push({ t: 'cancel' }); return; }
+    if (e.button !== 0) return;
+    const sel = state.selection;
+    const piece = state.pieces.find((p) => eq(p.at, cell));
+    if (sel) {
+      if (sel.preview && eq(sel.preview, cell)) queue.push({ t: 'confirm' });
+      else if (sel.legal.some((c) => eq(c, cell))) queue.push({ t: 'preview', to: cell });
+      else if (piece && piece.side === state.turn) queue.push({ t: 'select', pieceId: piece.id });
+      else queue.push({ t: 'cancel' });
+    } else if (piece && piece.side === state.turn) {
+      queue.push({ t: 'select', pieceId: piece.id });
+    }
+  }, { signal });
+
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'f' || e.key === 'F') view.floorMode = view.floorMode === 'grid' ? 'intersection' : 'grid';
+  }, { signal });
+
+  view.flashBanner('장기 1:1 — 말을 탭하면 갈 수 있는 칸이 표시됩니다', 0x89b4fa);
+
+  // 튜토리얼 AI — 합리적이되 상대 장(將)을 적극 노린다(huntRoyal). 적당히 봐주는 잡음.
+  const janggiAi: AiConfig = { lookaheadDescents: 0, avoidDanger: true, noise: 0.2, huntRoyal: true };
+  let aiWait = 0;
+  view.app.ticker.add((ticker) => {
+    const intents = queue.splice(0, queue.length);
+    if (intents.length > 0) applyTick({ dt: 0, intents });
+
+    // 적(장기) AI — 잠깐 텀 두고 한 수. 쉬움 난이도로 학습 친화.
+    if (state.status === 'playing' && state.turn === 'enemy') {
+      aiWait += ticker.deltaMS;
+      if (aiWait >= 500) {
+        aiWait = 0;
+        const move = aiChooseMove(state, 'enemy', janggiAi);
+        if (move) applyTick({ dt: 0, intents: [{ t: 'select', pieceId: move.pieceId }, { t: 'preview', to: move.to }, { t: 'confirm' }] });
+        else state = { ...state, status: 'over', overReason: 'royal' }; // 적이 둘 수 없음 → 플레이어 승
+      }
+    } else {
+      aiWait = 0;
+    }
+
+    view.draw(state);
+    const showCancel = state.status === 'playing' && state.turn === 'player' && state.selection !== undefined;
+    actionBtn.textContent = '✕ 취소';
+    actionBtn.style.display = showCancel ? 'block' : 'none';
+
+    if (state.status === 'over' && !ended) {
+      ended = true;
+      const playerAlive = state.pieces.some((p) => p.side === 'player' && p.isRoyal);
+      showOverlay(
+        playerAlive ? '승리! 적 장(將)을 잡았습니다' : '패배 — 내 장(將)이 잡혔습니다',
+        '장기 룰은 익히셨나요?',
+        [
+          { label: '다시 하기', onClick: () => { cleanup(); void startJanggi(); } },
+          { label: '본 게임 시작', onClick: () => { cleanup(); showMenu(); } },
           { label: '메뉴로', onClick: () => { cleanup(); showMenu(); } },
         ],
       );

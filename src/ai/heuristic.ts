@@ -17,6 +17,8 @@ export interface AiConfig {
   avoidDanger: boolean;
   /** 수 선택 잡음 0~1(클수록 약함·랜덤). */
   noise: number;
+  /** 상대 왕(장)을 적극 노린다 — 위협(장군)·접근 보너스. 장기 1:1 등에서 켬. */
+  huntRoyal?: boolean;
 }
 
 export const DEFAULT_AI_CONFIG: AiConfig = {
@@ -31,6 +33,8 @@ const W_ADVANCE = 1; // 전진(코어 쪽 행)
 const W_FUTURE = 3; // 하강해 깔아뭉갤 자리 보너스
 const W_DANGER = 10; // 되잡힘(손해) 패널티 = 내 말 가치 × 10
 const NOISE_AMP = 8; // 잡음 진폭
+const W_HUNT_CHECK = 40; // 상대 왕 위협(장군) 보너스 — 왕 사냥 유도(huntRoyal)
+const W_HUNT_PROX = 0.5; // 상대 왕에 가까워질수록 보너스(huntRoyal)
 
 /** 말 가치(AI 내부 평가용). royal은 압도적(=게임을 끝냄). */
 function pieceValue(kind: PieceKind): number {
@@ -91,11 +95,21 @@ function evaluateMove(piece: GameState['pieces'][number], to: Coord, state: Game
     }
   }
 
-  // 4) 위험 회피: 이동 후 그 칸이 상대 사정권이면 내 말 가치만큼 감점(손해 트레이드 회피).
-  if (cfg.avoidDanger) {
+  // 4·6) 위험 회피 + 왕 사냥 — 둘 다 이동 후 상태가 필요하므로 한 번만 계산.
+  if (cfg.avoidDanger || cfg.huntRoyal) {
     const after = applyMove(state, piece.id, to).state;
     const opp: Side = side === 'player' ? 'enemy' : 'player';
-    if (isAttackedBy(to, opp, after)) score -= pieceValue(piece.kind) * W_DANGER;
+    // 4) 되잡힘(손해) 회피.
+    if (cfg.avoidDanger && isAttackedBy(to, opp, after)) score -= pieceValue(piece.kind) * W_DANGER;
+    // 6) 왕 사냥: 상대 장(將)을 위협하면 보너스 + 장에 가까워질수록 보너스.
+    if (cfg.huntRoyal) {
+      const royal = after.pieces.find((p) => p.side === opp && p.isRoyal);
+      if (royal !== undefined) {
+        if (isAttackedBy(royal.at, side, after)) score += W_HUNT_CHECK;
+        const dist = Math.abs(to.col - royal.at.col) + Math.abs(to.row - royal.at.row);
+        score += (state.board.cols + state.board.rows - dist) * W_HUNT_PROX;
+      }
+    }
   }
 
   // 5) 잡음(난이도): 약할수록 무작위로 흔들림.

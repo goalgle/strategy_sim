@@ -56,7 +56,7 @@ function endPlayerTurn(state: GameState): { state: GameState; events: GameEvent[
   let mission = state.mission;
   let rng = state.rng;
   const events: GameEvent[] = [];
-  if (mission === undefined && turnCount % MISSION_INTERVAL === 0) {
+  if (state.mode !== 'janggi' && mission === undefined && turnCount % MISSION_INTERVAL === 0) {
     const r = rollMission(rng);
     mission = r.mission;
     rng = r.rng;
@@ -86,8 +86,9 @@ function resolveAutoMove(state: GameState, pieceId: string, to: Coord): { state:
     events.push({ t: 'captured', by: pieceId, targetId: c.id, targetKind: c.kind, at: { col: c.at.col, row: c.at.row }, mode: 'active' });
     score += captureScore(c.kind);
     events.push({ t: 'scored', total: score, delta: captureScore(c.kind), reason: 'capture' });
-    if (c.isRoyal && c.side === 'player') {
+    if (c.isRoyal && (c.side === 'player' || state.mode === 'janggi')) {
       // 디펜스 게임 — 내 왕(장)이 잡혀야 패배. 적 왕 잡기는 점수만, 종료 없음.
+      // 장기 튜토리얼('janggi')에서는 어느 장이든 잡히면 종료.
       status = 'over';
       overReason = 'royal';
       events.push({ t: 'gameOver', reason: 'royal' });
@@ -176,7 +177,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
           score += cScore;
           events.push({ t: 'scored', total: score, delta: cScore, reason: 'capture' });
         }
-        if (c.isRoyal && c.side === 'player') {
+        if (c.isRoyal && (c.side === 'player' || state.mode === 'janggi')) {
           status = 'over';
           overReason = 'royal';
           events.push({ t: 'gameOver', reason: 'royal' });
@@ -261,7 +262,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         });
         score += captureScore(c.kind);
         events.push({ t: 'scored', total: score, delta: captureScore(c.kind), reason: 'capture' });
-        if (c.isRoyal && c.side === 'player') {
+        if (c.isRoyal && (c.side === 'player' || state.mode === 'janggi')) {
           status = 'over';
           overReason = 'royal';
           events.push({ t: 'gameOver', reason: 'royal' });
@@ -361,7 +362,7 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         let overReason: OverReason | undefined = state.overReason;
         if (res.captured !== undefined) {
           events.push({ t: 'captured', by: p.pieceId, targetId: res.captured.id, targetKind: res.captured.kind, at: p.to, mode: 'active' });
-          if (res.captured.isRoyal && res.captured.side === 'player') {
+          if (res.captured.isRoyal && (res.captured.side === 'player' || state.mode === 'janggi')) {
             status = 'over';
             overReason = 'royal';
             events.push({ t: 'gameOver', reason: 'royal' });

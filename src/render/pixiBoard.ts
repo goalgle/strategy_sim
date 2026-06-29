@@ -98,6 +98,11 @@ export class BoardView {
     this.banner.x = width / 2;
     this.banner.y = this.boardTop() + this.rows * CELL * 0.32;
     this.banner.visible = false;
+    // 캔버스 폭을 넘기는 긴 문구는 자동 줄바꿈(모바일 좌우 잘림 방지).
+    this.banner.style.wordWrap = true;
+    this.banner.style.wordWrapWidth = width - 36;
+    this.banner.style.breakWords = true;
+    this.banner.style.lineHeight = 26;
     this.app.stage.addChild(
       this.floor,
       this.highlights,
@@ -379,6 +384,11 @@ export class BoardView {
 
   private drawHud(state: GameState): void {
     const turn = state.turn === 'player' ? '플레이어' : '적';
+    // 장기 튜토리얼: 본 게임 지표(점수·티켓·HP) 대신 단순 안내만.
+    if (state.mode === 'janggi') {
+      this.hud.text = `🎓 장기 튜토리얼  ·  턴:${turn}\n상대 장(將)을 잡으면 승리`;
+      return;
+    }
     const paused = state.hourglass.paused ? ' ⏸' : '';
     const judge = this.lastJudge ? `  ·  ${this.lastJudge.toUpperCase()}` : '';
     // 미션·콤보·경고는 길어서 각자 줄로 내림(모바일 잘림 방지).

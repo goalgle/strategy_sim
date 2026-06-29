@@ -104,6 +104,7 @@ function baseState(board: Board, init: GameInit): GameState {
     checked: false,
     turnCount: 0,
     tickets: 0,
+    mode: 'defense',
     roster: [],
     rewardCount: 0,
   };
@@ -208,4 +209,58 @@ export function createStandardGame(opts: StandardOptions = {}): GameState {
     .map((p) => ({ id: p.id, kind: p.kind, col: p.at.col, row: p.at.row }));
   const pieces = grantPlayerBuffs(built, opts.playerBuffs ?? []);
   return { ...base, rng, pieces, roster };
+}
+
+/** 표준 장기 진형의 1:1 줄. general은 궁성 중앙에 별도 배치하므로 빈칸. */
+const JANGGI_LINEUP: PieceKind[] = [
+  'chariot',
+  'horse',
+  'elephant',
+  'guard',
+  'general',
+  'guard',
+  'elephant',
+  'horse',
+  'chariot',
+];
+
+/**
+ * 장기 튜토리얼 — 위·아래 모두 표준 장기 진형(9×10, 양쪽 궁성).
+ * 모래시계 없음(capacity 0 → 하강·스폰 정지), 보상·미션 없음. 어느 장이든 잡히면 종료.
+ */
+export function createJanggiGame(opts: GameInit = {}): GameState {
+  const cols = 9;
+  const rows = 10;
+  const board: Board = {
+    cols,
+    rows,
+    palaces: [makePalace('player', cols, rows), makePalace('enemy', cols, rows)],
+  };
+  const base = baseState(board, { ...opts, capacityMs: 0 });
+  const placer = new Placer();
+  const back = rows - 1;
+
+  // 아래: 플레이어
+  JANGGI_LINEUP.forEach((kind, col) => {
+    if (kind !== 'general') placer.place(kind, 'player', col, back);
+  });
+  placer.place('general', 'player', 4, back - 1);
+  placer.place('cannon', 'player', 1, back - 2);
+  placer.place('cannon', 'player', 7, back - 2);
+  for (const col of [0, 2, 4, 6, 8]) placer.place('soldier', 'player', col, back - 3);
+
+  // 위: 적(같은 장기 진형, 거울)
+  JANGGI_LINEUP.forEach((kind, col) => {
+    if (kind !== 'general') placer.place(kind, 'enemy', col, 0);
+  });
+  placer.place('general', 'enemy', 4, 1);
+  placer.place('cannon', 'enemy', 1, 2);
+  placer.place('cannon', 'enemy', 7, 2);
+  for (const col of [0, 2, 4, 6, 8]) placer.place('soldier', 'enemy', col, 3);
+
+  const built = placer.build();
+  const roster = built
+    .filter((p) => p.side === 'player')
+    .map((p) => ({ id: p.id, kind: p.kind, col: p.at.col, row: p.at.row }));
+  return { ...base, mode: 'janggi', pieces: built, roster };
 }

@@ -188,6 +188,11 @@ export interface GameState {
   mission?: Mission;
   /** 진행 중인 콤보(연속 잡기). 없으면 일반 상태. */
   combo?: Combo;
+  /**
+   * 모드. 'defense'=본 게임(적 왕 잡아도 안 끝남·보상·미션·하강).
+   * 'janggi'=장기 튜토리얼(1:1, 어느 쪽 장이든 잡히면 끝, 보상·미션 없음).
+   */
+  mode: 'defense' | 'janggi';
   /** 시작 시점 플레이어 말 명부(원위치) — 리젠 카드의 부활 위치. */
   roster: RosterEntry[];
   /** 지급한 보상 카드 수(누적) — 다음 임계 계산. */

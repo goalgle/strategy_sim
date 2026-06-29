@@ -99,4 +99,17 @@ describe('AI 휴리스틱 (MVP)', () => {
       ]);
     expect(aiChooseMove(mk(), 'enemy')).toEqual(aiChooseMove(mk(), 'enemy'));
   });
+
+  it('huntRoyal: 작은 잡기보다 상대 왕 위협(장군)을 우선', () => {
+    // 적 차(5,5). 내려가며 폰(5,6) 잡기 vs (0,5)로 가서 장(0,0) 장군.
+    const g = () =>
+      game(9, 10, [
+        ['chariot', 'enemy', 5, 5],
+        ['pawn', 'player', 5, 6],
+        ['general', 'player', 0, 0],
+      ]);
+    const base: AiConfig = { lookaheadDescents: 0, avoidDanger: false, noise: 0 };
+    expect(aiChooseMove(g(), 'enemy', base)?.to).toEqual({ col: 5, row: 6 }); // 기본: 폰 잡기
+    expect(aiChooseMove(g(), 'enemy', { ...base, huntRoyal: true })?.to).toEqual({ col: 0, row: 5 }); // 사냥: 장군
+  });
 });
