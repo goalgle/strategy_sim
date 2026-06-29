@@ -20,6 +20,7 @@ export type GameEvent =
       at: Coord;
       mode: 'active' | 'descent'; // active=이동측 승, descent=위쪽 승
     }
+  | { t: 'sacrificed'; pieceId: string; kind: PieceKind; at: Coord } // 차 관통 버프: 아군 1기 희생
   // 모래시계/하강/스폰
   | { t: 'cycle'; cycle: number } // 모래시계 뒤집힘
   | { t: 'descended'; movedIds: string[] } // 적 일제 하강

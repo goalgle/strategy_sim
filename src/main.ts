@@ -50,6 +50,7 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
       case 'previewed': sfx.preview(); break;
       case 'moved': lastMovedTo = e.to; sfx.move(); break;
       case 'captured': sfx.capture(); break;
+      case 'sacrificed': sfx.damage(); break; // 차 관통: 아군 희생
       case 'canceled': sfx.cancel(); break;
       case 'rhythm':
         view.lastJudge = e.judge;

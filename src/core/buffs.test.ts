@@ -2,8 +2,11 @@
 import { describe, expect, it } from 'vitest';
 import { makePalace } from './board';
 import { BUFFS, grantPlayerBuffs, hasBuff, parseBuffs, withBuff } from './buffs';
+import { chariotPierceMoves, elephantTramplePath } from './pieces/janggi';
 import { legalMoves } from './pieces/registry';
+import { applyMove, capturesIfMoved, sacrificeIfMoved } from './rules';
 import { emptyGame } from './setup';
+import { isAttackedBy } from './threats';
 import type { GameState, Piece } from './types';
 
 function guardAt(col: number, row: number, withGuardStride: boolean): Piece {
@@ -145,5 +148,223 @@ describe('#2 마 점프(horseLeap)', () => {
     const enemy: Piece = { ...h, id: 'enm', side: 'enemy', at: { col: 5, row: 2 } };
     const moves = legalMoves(h, openGame([h, enemy]));
     expect(has(moves, 5, 2)).toBe(true);
+  });
+});
+
+function elephantAt(col: number, row: number, trample: boolean): Piece {
+  const base: Piece = {
+    id: 'p-eleph-0',
+    kind: 'elephant',
+    family: 'janggi',
+    side: 'player',
+    at: { col, row },
+    isRoyal: false,
+  };
+  return trample ? withBuff(base, 'elephantTrample') : base;
+}
+
+function enemyAt(id: string, col: number, row: number): Piece {
+  return { id, kind: 'pawn', family: 'chess', side: 'enemy', at: { col, row }, isRoyal: false };
+}
+
+describe('#3 상 짓밟기(elephantTrample)', () => {
+  it('경로 헬퍼는 from→to의 중간 두 칸을 복원', () => {
+    // (4,5)→(6,2): leg1(4,4), leg2(5,3)
+    expect(elephantTramplePath({ col: 4, row: 5 }, { col: 6, row: 2 })).toEqual([
+      { col: 4, row: 4 },
+      { col: 5, row: 3 },
+    ]);
+  });
+
+  it('버프 없으면 멱(경로)이 막히면 불가', () => {
+    const e = elephantAt(4, 5, false);
+    const block = enemyAt('blk', 4, 4); // leg1 막힘
+    const moves = legalMoves(e, openGame([e, block]));
+    expect(has(moves, 6, 2)).toBe(false);
+    expect(has(moves, 2, 2)).toBe(false);
+  });
+
+  it('버프 있으면 경로에 적이 있어도 통과(아군은 차단)', () => {
+    const e = elephantAt(4, 5, true);
+    const onLeg1 = enemyAt('e1', 4, 4);
+    const moves = legalMoves(e, openGame([e, onLeg1]));
+    expect(has(moves, 6, 2)).toBe(true); // 적 멱은 통과
+    // 아군이 leg2(5,3)에 있으면 그 도착지는 막힘
+    const ally: Piece = { ...elephantAt(5, 3, false), id: 'ally' };
+    const moves2 = legalMoves(e, openGame([e, onLeg1, ally]));
+    expect(has(moves2, 6, 2)).toBe(false);
+  });
+
+  it('applyMove가 경로 + 도착칸의 적을 모두 잡는다', () => {
+    const e = elephantAt(4, 5, true);
+    const onLeg1 = enemyAt('e1', 4, 4);
+    const onDest = enemyAt('e2', 6, 2);
+    const res = applyMove(openGame([e, onLeg1, onDest]), e.id, { col: 6, row: 2 });
+    expect(res.captures.map((c) => c.id).sort()).toEqual(['e1', 'e2']);
+    expect(res.captured?.id).toBe('e2'); // 도착칸은 기존 호환 필드
+    expect(res.state.pieces.find((p) => p.id === e.id)?.at).toEqual({ col: 6, row: 2 });
+    expect(res.state.pieces.some((p) => p.id === 'e1' || p.id === 'e2')).toBe(false);
+  });
+
+  it('버프 없는 일반 이동은 captures 길이 1(하위호환)', () => {
+    const e = elephantAt(4, 5, false);
+    const onDest = enemyAt('e2', 6, 2);
+    const res = applyMove(openGame([e, onDest]), e.id, { col: 6, row: 2 });
+    expect(res.captures).toHaveLength(1);
+    expect(res.captured?.id).toBe('e2');
+  });
+
+  it('capturesIfMoved는 잡힐 말 전부를 돌려주되 상태를 바꾸지 않음(UI 미리보기용)', () => {
+    const e = elephantAt(4, 5, true);
+    const state = openGame([e, enemyAt('e1', 4, 4), enemyAt('e2', 6, 2)]);
+    const caps = capturesIfMoved(state, e.id, { col: 6, row: 2 });
+    expect(caps.map((c) => c.id).sort()).toEqual(['e1', 'e2']);
+    expect(state.pieces).toHaveLength(3); // 원본 불변
+  });
+
+  it('AI 위협판정이 짓밟기 경로 중간칸도 사정권으로 인식', () => {
+    const e = elephantAt(4, 5, true);
+    const onLeg1 = enemyAt('e1', 4, 4);
+    const state = openGame([e, onLeg1]);
+    expect(isAttackedBy({ col: 4, row: 4 }, 'player', state)).toBe(true); // 경로 중간칸
+    expect(isAttackedBy({ col: 6, row: 2 }, 'player', state)).toBe(true); // 도착칸
+    // 버프 없으면 경로 막혀 사정권 아님
+    const plain = openGame([elephantAt(4, 5, false), onLeg1]);
+    expect(isAttackedBy({ col: 4, row: 4 }, 'player', plain)).toBe(false);
+  });
+});
+
+function cannonAt(col: number, row: number, creep: boolean): Piece {
+  const base: Piece = {
+    id: 'p-cannon-0',
+    kind: 'cannon',
+    family: 'janggi',
+    side: 'player',
+    at: { col, row },
+    isRoyal: false,
+  };
+  return creep ? withBuff(base, 'cannonCreep') : base;
+}
+
+describe('#4 포 보행(cannonCreep)', () => {
+  it('버프 없으면 다리가 없을 때 움직일 수 없다', () => {
+    const c = cannonAt(4, 5, false);
+    expect(legalMoves(c, openGame([c]))).toHaveLength(0);
+  });
+
+  it('버프 있으면 인접 빈 4칸으로 평이동', () => {
+    const c = cannonAt(4, 5, true);
+    const moves = legalMoves(c, openGame([c]));
+    expect(has(moves, 4, 4)).toBe(true);
+    expect(has(moves, 4, 6)).toBe(true);
+    expect(has(moves, 3, 5)).toBe(true);
+    expect(has(moves, 5, 5)).toBe(true);
+    expect(moves).toHaveLength(4);
+  });
+
+  it('보행으로는 인접 적을 잡지 못한다(빈 칸만)', () => {
+    const c = cannonAt(4, 5, true);
+    const enemy = enemyAt('e', 4, 4); // 위쪽 인접 적(동시에 포의 다리 역할)
+    const moves = legalMoves(c, openGame([c, enemy]));
+    expect(has(moves, 4, 4)).toBe(false); // 적 칸으로 보행/착지 ✗ (잡기 불가)
+    // 나머지 인접 빈 칸은 보행 가능
+    expect(has(moves, 4, 6)).toBe(true);
+    expect(has(moves, 3, 5)).toBe(true);
+    expect(has(moves, 5, 5)).toBe(true);
+  });
+
+  it('보행은 일반 다리 점프 잡기와 공존한다', () => {
+    const c = cannonAt(4, 5, true);
+    const screen = enemyAt('scr', 4, 3); // 다리
+    const target = enemyAt('tgt', 4, 1); // 너머 적(잡기)
+    const moves = legalMoves(c, openGame([c, screen, target]));
+    expect(has(moves, 4, 1)).toBe(true); // 점프 잡기
+    expect(has(moves, 4, 2)).toBe(true); // 점프 이동
+    expect(has(moves, 4, 6)).toBe(true); // 보행
+    expect(has(moves, 4, 4)).toBe(true); // 보행(다리 앞 빈 칸)
+  });
+});
+
+function chariotAt(col: number, row: number, pierce: boolean): Piece {
+  const base: Piece = {
+    id: 'p-chariot-0',
+    kind: 'chariot',
+    family: 'janggi',
+    side: 'player',
+    at: { col, row },
+    isRoyal: false,
+  };
+  return pierce ? withBuff(base, 'chariotPierce') : base;
+}
+
+function allyAt(id: string, col: number, row: number, kind: Piece['kind'] = 'soldier'): Piece {
+  return { id, kind, family: 'janggi', side: 'player', at: { col, row }, isRoyal: kind === 'general' };
+}
+
+describe('#5 차 관통(chariotPierce)', () => {
+  it('버프 없으면 가로막은 아군 너머로 갈 수 없다', () => {
+    const c = chariotAt(4, 8, false);
+    const ally = allyAt('a', 4, 5);
+    const enemy = enemyAt('e', 4, 2);
+    const moves = legalMoves(c, openGame([c, ally, enemy]));
+    expect(has(moves, 4, 2)).toBe(false); // 아군에 막혀 너머 불가
+    expect(has(moves, 4, 6)).toBe(true); // 아군 앞 빈 칸까지만
+  });
+
+  it('버프 있으면 아군1 너머 적으로 관통', () => {
+    const c = chariotAt(4, 8, true);
+    const ally = allyAt('a', 4, 5);
+    const enemy = enemyAt('e', 4, 2);
+    const state = openGame([c, ally, enemy]);
+    expect(has(legalMoves(c, state), 4, 2)).toBe(true);
+    expect(chariotPierceMoves(c, state)).toEqual([{ to: { col: 4, row: 2 }, sacrificeId: 'a' }]);
+  });
+
+  it('아군이 2기면(혹은 royal이면) 관통 불가', () => {
+    const c = chariotAt(4, 8, true);
+    const enemy = enemyAt('e', 4, 2);
+    const two = openGame([c, allyAt('a', 4, 5), allyAt('b', 4, 4), enemy]);
+    expect(has(legalMoves(c, two), 4, 2)).toBe(false); // 아군 2기
+    const royal = openGame([c, allyAt('g', 4, 5, 'general'), enemy]);
+    expect(has(legalMoves(c, royal), 4, 2)).toBe(false); // 내 궁 희생 불가
+  });
+
+  it('아군 너머가 적이 아니면(빈 칸/아군) 관통 없음', () => {
+    const c = chariotAt(4, 8, true);
+    const noTarget = openGame([c, allyAt('a', 4, 5)]); // 너머 적 없음
+    expect(chariotPierceMoves(c, noTarget)).toEqual([]);
+  });
+
+  it('applyMove: 적 잡기 + 아군 희생, 둘 다 제거', () => {
+    const c = chariotAt(4, 8, true);
+    const ally = allyAt('a', 4, 5);
+    const enemy = enemyAt('e', 4, 2);
+    const res = applyMove(openGame([c, ally, enemy]), c.id, { col: 4, row: 2 });
+    expect(res.captures.map((p) => p.id)).toEqual(['e']); // 적만 점수 대상
+    expect(res.captured?.id).toBe('e');
+    expect(res.sacrifice?.id).toBe('a'); // 아군 희생
+    expect(res.state.pieces.map((p) => p.id).sort()).toEqual(['p-chariot-0']); // 차만 남음
+    expect(res.state.pieces[0]!.at).toEqual({ col: 4, row: 2 });
+  });
+
+  it('미리보기 질의: captures=적, sacrifice=아군', () => {
+    const c = chariotAt(4, 8, true);
+    const state = openGame([c, allyAt('a', 4, 5), enemyAt('e', 4, 2)]);
+    expect(capturesIfMoved(state, c.id, { col: 4, row: 2 }).map((p) => p.id)).toEqual(['e']);
+    expect(sacrificeIfMoved(state, c.id, { col: 4, row: 2 })?.id).toBe('a');
+  });
+
+  it('버프가 있어도 일반 직접 잡기는 희생 없음', () => {
+    const c = chariotAt(4, 8, true);
+    const enemy = enemyAt('e', 4, 5); // 사이에 아군 없음
+    const res = applyMove(openGame([c, enemy]), c.id, { col: 4, row: 5 });
+    expect(res.captured?.id).toBe('e');
+    expect(res.sacrifice).toBeUndefined();
+  });
+
+  it('AI 위협판정: 관통 도착(적 칸)을 사정권으로 인식', () => {
+    const c = chariotAt(4, 8, true);
+    const state = openGame([c, allyAt('a', 4, 5), enemyAt('e', 4, 2)]);
+    expect(isAttackedBy({ col: 4, row: 2 }, 'player', state)).toBe(true);
   });
 });

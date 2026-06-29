@@ -5,6 +5,7 @@ import { eq } from '../core/board';
 import { BUFFS } from '../core/buffs';
 import { missionLabel } from '../core/missions';
 import { beatPhase01 } from '../core/rhythm';
+import { capturesIfMoved, sacrificeIfMoved } from '../core/rules';
 import type { Coord, GameState, PieceKind, RhythmJudge } from '../core/types';
 
 export type FloorMode = 'grid' | 'intersection';
@@ -50,6 +51,7 @@ const COL = {
   capture: 0xff7a7a,
   preview: 0xffe14a,
   combo: 0xff5a2a,
+  sacrifice: 0xffa14a, // 차 관통: 희생될 아군 표시(주황)
   bar: 0x6b8cff,
 };
 
@@ -280,6 +282,20 @@ export class BoardView {
       else g.circle(x, y, CELL * 0.16).fill({ color: COL.legal, alpha: 0.7 });
     }
     if (sel.preview) {
+      // 이 수로 잡힐 적 전부를 빨강 링으로(상 짓밟기 등 도착칸 외 다중 잡기 표시).
+      for (const cap of capturesIfMoved(state, sel.pieceId, sel.preview)) {
+        const c = this.center(cap.at.col, cap.at.row);
+        g.circle(c.x, c.y, CELL * 0.42).stroke({ width: 3, color: COL.capture });
+      }
+      // 차 관통: 희생될 아군을 주황 링 + X로 경고.
+      const sac = sacrificeIfMoved(state, sel.pieceId, sel.preview);
+      if (sac) {
+        const c = this.center(sac.at.col, sac.at.row);
+        const r = CELL * 0.2;
+        g.circle(c.x, c.y, CELL * 0.42).stroke({ width: 3, color: COL.sacrifice });
+        g.moveTo(c.x - r, c.y - r).lineTo(c.x + r, c.y + r).stroke({ width: 3, color: COL.sacrifice });
+        g.moveTo(c.x + r, c.y - r).lineTo(c.x - r, c.y + r).stroke({ width: 3, color: COL.sacrifice });
+      }
       const { x, y } = this.center(sel.preview.col, sel.preview.row);
       g.circle(x, y, CELL * 0.46).stroke({ width: 3, color: COL.preview });
     }

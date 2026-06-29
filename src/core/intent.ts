@@ -24,14 +24,22 @@ import type { Coord, GameState, GameStatus, Intent, Mission, OverReason, PieceKi
 
 const other = (s: Side): Side => (s === 'player' ? 'enemy' : 'player');
 
-function satisfies(m: Mission, ev: { movedKind?: PieceKind; capturedKind?: PieceKind }): boolean {
-  return m.kind === 'moveKind' ? ev.movedKind === m.target : ev.capturedKind === m.target;
+interface MissionEv {
+  movedKind?: PieceKind;
+  capturedKind?: PieceKind;
+  /** 한 수로 여러 말을 잡을 때(상 짓밟기 등) — 하나라도 대상이면 충족. */
+  capturedKinds?: PieceKind[];
+}
+
+function satisfies(m: Mission, ev: MissionEv): boolean {
+  if (m.kind === 'moveKind') return ev.movedKind === m.target;
+  return ev.capturedKind === m.target || (ev.capturedKinds?.includes(m.target) ?? false);
 }
 
 /** 플레이어 행동에 미션 진행 반영 — 충족되면 티켓 +1, 미션 해제. */
 function progressMission(
   state: GameState,
-  ev: { movedKind?: PieceKind; capturedKind?: PieceKind },
+  ev: MissionEv,
 ): { tickets: number; mission?: Mission; events: GameEvent[] } {
   if (state.mission === undefined || !satisfies(state.mission, ev)) {
     return { tickets: state.tickets, mission: state.mission, events: [] };
@@ -72,18 +80,21 @@ function resolveAutoMove(state: GameState, pieceId: string, to: Coord): { state:
   let status: GameStatus = state.status;
   let overReason: OverReason | undefined = state.overReason;
 
-  if (res.captured !== undefined) {
-    events.push({ t: 'captured', by: pieceId, targetId: res.captured.id, targetKind: res.captured.kind, at: to, mode: 'active' });
-    score += captureScore(res.captured.kind);
-    events.push({ t: 'scored', total: score, delta: captureScore(res.captured.kind), reason: 'capture' });
-    if (res.captured.isRoyal) {
+  for (const c of res.captures) {
+    events.push({ t: 'captured', by: pieceId, targetId: c.id, targetKind: c.kind, at: { col: c.at.col, row: c.at.row }, mode: 'active' });
+    score += captureScore(c.kind);
+    events.push({ t: 'scored', total: score, delta: captureScore(c.kind), reason: 'capture' });
+    if (c.isRoyal) {
       status = 'over';
       overReason = 'royal';
       events.push({ t: 'gameOver', reason: 'royal' });
     }
   }
+  if (res.sacrifice !== undefined) {
+    events.push({ t: 'sacrificed', pieceId: res.sacrifice.id, kind: res.sacrifice.kind, at: { ...res.sacrifice.at } });
+  }
   if (status !== 'over') {
-    const pm = progressMission({ ...state, tickets, mission }, { movedKind: mover.kind, capturedKind: res.captured?.kind });
+    const pm = progressMission({ ...state, tickets, mission }, { movedKind: mover.kind, capturedKinds: res.captures.map((c) => c.kind) });
     tickets = pm.tickets;
     mission = pm.mission;
     events.push(...pm.events);
@@ -145,32 +156,37 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         }
       }
 
-      if (res.captured !== undefined) {
+      // 잡기(도착칸 + 버프 부가 잡기 모두). 짓밟기는 한 수로 여러 말을 잡는다.
+      for (const c of res.captures) {
         events.push({
           t: 'captured',
           by: sel.pieceId,
-          targetId: res.captured.id,
-          targetKind: res.captured.kind,
-          at: to,
+          targetId: c.id,
+          targetKind: c.kind,
+          at: { col: c.at.col, row: c.at.row },
           mode: 'active',
         });
         if (isPlayer) {
-          const cScore = captureScore(res.captured.kind);
+          const cScore = captureScore(c.kind);
           score += cScore;
           events.push({ t: 'scored', total: score, delta: cScore, reason: 'capture' });
         }
-        if (res.captured.isRoyal) {
+        if (c.isRoyal) {
           status = 'over';
           overReason = 'royal';
           events.push({ t: 'gameOver', reason: 'royal' });
         }
       }
 
-      // 미션 진행(플레이어): 이동한 말 종류 / 잡은 적 종류.
+      if (res.sacrifice !== undefined) {
+        events.push({ t: 'sacrificed', pieceId: res.sacrifice.id, kind: res.sacrifice.kind, at: { ...res.sacrifice.at } });
+      }
+
+      // 미션 진행(플레이어): 이동한 말 종류 / 잡은 적 종류(여럿 가능).
       if (isPlayer && status !== 'over') {
         const pm = progressMission(
           { ...state, tickets, mission },
-          { movedKind: mover.kind, capturedKind: res.captured?.kind },
+          { movedKind: mover.kind, capturedKinds: res.captures.map((c) => c.kind) },
         );
         tickets = pm.tickets;
         mission = pm.mission;
@@ -229,29 +245,33 @@ export function applyIntent(state: GameState, intent: Intent): { state: GameStat
         events.push({ t: 'scored', total: score, delta: RHYTHM_SCORE[j], reason: 'rhythm' });
       }
 
-      if (res.captured !== undefined) {
+      for (const c of res.captures) {
         events.push({
           t: 'captured',
           by: combo.pieceId,
-          targetId: res.captured.id,
-          targetKind: res.captured.kind,
-          at: intent.to,
+          targetId: c.id,
+          targetKind: c.kind,
+          at: { col: c.at.col, row: c.at.row },
           mode: 'active',
         });
-        score += captureScore(res.captured.kind);
-        events.push({ t: 'scored', total: score, delta: captureScore(res.captured.kind), reason: 'capture' });
-        if (res.captured.isRoyal) {
+        score += captureScore(c.kind);
+        events.push({ t: 'scored', total: score, delta: captureScore(c.kind), reason: 'capture' });
+        if (c.isRoyal) {
           status = 'over';
           overReason = 'royal';
           events.push({ t: 'gameOver', reason: 'royal' });
         }
       }
 
-      // 미션(잡은 적 종류)
+      if (res.sacrifice !== undefined) {
+        events.push({ t: 'sacrificed', pieceId: res.sacrifice.id, kind: res.sacrifice.kind, at: { ...res.sacrifice.at } });
+      }
+
+      // 미션(잡은 적 종류, 여럿 가능)
       let tk = tickets;
       let mission = state.mission;
       if (status !== 'over') {
-        const pm = progressMission({ ...state, tickets: tk, mission }, { capturedKind: res.captured?.kind });
+        const pm = progressMission({ ...state, tickets: tk, mission }, { capturedKinds: res.captures.map((c) => c.kind) });
         tk = pm.tickets;
         mission = pm.mission;
         events.push(...pm.events);

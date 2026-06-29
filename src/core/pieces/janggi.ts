@@ -14,12 +14,36 @@ import { hasBuff } from '../buffs';
 import type { Coord, GameState, MoveGen, Piece } from '../types';
 import { KNIGHT_JUMPS, ORTHO, ray, step, type Dir } from './common';
 
-// ── 차(chariot): 룩 레이 + 궁성 대각선 슬라이드 ──────────
+// ── 차(chariot): 룩 레이 + 궁성 대각선 슬라이드. (버프 chariotPierce) 아군1 희생 관통 잡기 ──
 export const chariot: MoveGen = (p, s) => {
   const out = ORTHO.flatMap((d) => ray(p.at, d, p.side, s));
   out.push(...palaceDiagonalSlide(p, s));
+  for (const m of chariotPierceMoves(p, s)) out.push(m.to);
   return dedupeCoords(out);
 };
+
+/**
+ * 차 관통(버프): 직교 레이에서 [빈칸…] 아군1 [빈칸…] 적 패턴이면, 그 적 칸으로 이동 가능.
+ * 가로막은 아군(희생)은 royal이 아니어야 하고, 정확히 1기만 사이에 있을 때 성립.
+ * 반환: 도착칸 + 희생될 아군 id(해소 시 둘 다 제거). 도착칸 외 잡기라 단일 진실 소스로 둔다.
+ */
+export function chariotPierceMoves(p: Piece, s: GameState): { to: Coord; sacrificeId: string }[] {
+  if (!hasBuff(p, 'chariotPierce')) return [];
+  const out: { to: Coord; sacrificeId: string }[] = [];
+  for (const d of ORTHO) {
+    let c = step(p.at, d);
+    while (inBounds(c, s.board) && isEmpty(c, s)) c = step(c, d); // 첫 말까지
+    if (!inBounds(c, s.board)) continue;
+    const ally = pieceAt(c, s)!;
+    if (ally.side !== p.side || ally.isRoyal) continue; // 가로막은게 아군(비-royal)이어야
+    c = step(c, d);
+    while (inBounds(c, s.board) && isEmpty(c, s)) c = step(c, d); // 아군 너머 다음 말까지
+    if (!inBounds(c, s.board)) continue;
+    const target = pieceAt(c, s)!;
+    if (target.side !== p.side) out.push({ to: { col: c.col, row: c.row }, sacrificeId: ally.id });
+  }
+  return out;
+}
 
 /** 궁성 대각선 라인 위에 있으면 그 라인을 따라 양방향 슬라이드(레이와 동일 규칙). */
 function palaceDiagonalSlide(p: Piece, s: GameState): Coord[] {
@@ -42,13 +66,24 @@ function palaceDiagonalSlide(p: Piece, s: GameState): Coord[] {
   return out;
 }
 
-// ── 포(cannon): 다리 하나를 넘어 이동/잡기. 다리·대상이 포면 불가 ──
+// ── 포(cannon): 다리 하나를 넘어 이동/잡기. 다리·대상이 포면 불가. (버프 cannonCreep) 인접 1칸 평이동 ──
 export const cannon: MoveGen = (p, s) => {
   const out: Coord[] = [];
   for (const d of ORTHO) out.push(...cannonRay(p, d, s));
   out.push(...cannonPalaceDiagonal(p, s));
+  if (hasBuff(p, 'cannonCreep')) out.push(...cannonCreep(p, s));
   return dedupeCoords(out);
 };
+
+/** 인접 직교 1칸 평이동 — 빈 칸만(잡기 불가). 일반 포의 다리 점프와 별개로 추가. */
+function cannonCreep(p: Piece, s: GameState): Coord[] {
+  const out: Coord[] = [];
+  for (const d of ORTHO) {
+    const c = step(p.at, d);
+    if (inBounds(c, s.board) && isEmpty(c, s)) out.push(c);
+  }
+  return out;
+}
 
 function cannonRay(p: Piece, d: Dir, s: GameState): Coord[] {
   const out: Coord[] = [];
@@ -122,21 +157,38 @@ function horseLeap(p: Piece, s: GameState): Coord[] {
   return out;
 }
 
-// ── 상(elephant): 직교 1보 + 대각 2보, 멱 2지점 ──────────
+// ── 상(elephant): 직교 1보 + 대각 2보, 멱 2지점. (버프 elephantTrample) 멱 무시·경로 적 짓밟기 ──
 export const elephant: MoveGen = (p, s) => {
+  const trample = hasBuff(p, 'elephantTrample');
   const out: Coord[] = [];
   for (const o of ORTHO) {
     const leg1 = step(p.at, o);
-    if (!inBounds(leg1, s.board) || !isEmpty(leg1, s)) continue; // 멱 1
+    if (!inBounds(leg1, s.board)) continue;
+    if (trample ? isAllyOf(leg1, p.side, s) : !isEmpty(leg1, s)) continue; // 짓밟기:아군만 차단 / 일반:멱1
     for (const d of outwardDiagonals(o)) {
       const leg2 = step(leg1, d);
-      if (!inBounds(leg2, s.board) || !isEmpty(leg2, s)) continue; // 멱 2
+      if (!inBounds(leg2, s.board)) continue;
+      if (trample ? isAllyOf(leg2, p.side, s) : !isEmpty(leg2, s)) continue; // 멱2 / 아군 차단
       const dest = step(leg2, d);
       if (inBounds(dest, s.board) && !isAllyOf(dest, p.side, s)) out.push(dest);
     }
   }
   return out;
 };
+
+/**
+ * 상 짓밟기 경로의 중간 두 칸(leg1, leg2) 절대 좌표. 도착칸은 별도(일반 잡기).
+ * from→to는 항상 유효한 상 변위(±2,±3 또는 ±3,±2)이므로 경로가 유일하게 복원된다.
+ */
+export function elephantTramplePath(from: Coord, to: Coord): Coord[] {
+  const dc = to.col - from.col;
+  const dr = to.row - from.row;
+  const sc = Math.sign(dc);
+  const sr = Math.sign(dr);
+  const leg1 = { col: from.col + (dc - 2 * sc), row: from.row + (dr - 2 * sr) };
+  const leg2 = { col: leg1.col + sc, row: leg1.row + sr };
+  return [leg1, leg2];
+}
 
 /** 직교 방향 o에 대해 '바깥으로' 벌어지는 두 대각 방향. */
 function outwardDiagonals(o: Dir): Dir[] {
