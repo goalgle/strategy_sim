@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { makePalace } from './board';
 import { BUFFS, grantPlayerBuffs, hasBuff, parseBuffs, withBuff } from './buffs';
+import { wardedCellsAgainst } from './board';
+import { applyDescent } from './descent';
 import { chariotPierceMoves, elephantTramplePath } from './pieces/janggi';
 import { legalMoves } from './pieces/registry';
 import { applyMove, capturesIfMoved, sacrificeIfMoved } from './rules';
@@ -366,5 +368,80 @@ describe('#5 차 관통(chariotPierce)', () => {
     const c = chariotAt(4, 8, true);
     const state = openGame([c, allyAt('a', 4, 5), enemyAt('e', 4, 2)]);
     expect(isAttackedBy({ col: 4, row: 2 }, 'player', state)).toBe(true);
+  });
+});
+
+// 플레이어 궁성: cols 3..5, rows 7..9 (9×10 보드).
+function general(ward: boolean): Piece {
+  const g: Piece = { id: 'g', kind: 'general', family: 'janggi', side: 'player', at: { col: 3, row: 9 }, isRoyal: true };
+  return ward ? withBuff(g, 'palaceWard') : g;
+}
+function enemyRook(col: number, row: number): Piece {
+  return { id: 'r', kind: 'rook', family: 'chess', side: 'enemy', at: { col, row }, isRoyal: false };
+}
+
+describe('#6 궁성 결계(palaceWard)', () => {
+  it('결계 없으면 적이 궁성에 진입 가능', () => {
+    const moves = legalMoves(enemyRook(4, 5), palaceGame([general(false), enemyRook(4, 5)]));
+    expect(has(moves, 4, 6)).toBe(true); // 궁성 밖
+    expect(has(moves, 4, 7)).toBe(true); // 궁성 칸
+    expect(has(moves, 4, 8)).toBe(true);
+    expect(has(moves, 4, 9)).toBe(true);
+  });
+
+  it('결계 있으면 적이 궁성 칸으로 못 들어간다', () => {
+    const state = palaceGame([general(true), enemyRook(4, 5)]);
+    const moves = legalMoves(enemyRook(4, 5), state);
+    expect(has(moves, 4, 6)).toBe(true); // 궁성 밖은 가능
+    expect(has(moves, 4, 7)).toBe(false); // 궁성 진입 ✗
+    expect(has(moves, 4, 8)).toBe(false);
+    expect(has(moves, 4, 9)).toBe(false);
+  });
+
+  it('결계는 궁성 안 아군 잡기도 막는다(진입 자체 불가)', () => {
+    const victim: Piece = { id: 'v', kind: 'soldier', family: 'janggi', side: 'player', at: { col: 4, row: 8 }, isRoyal: false };
+    const state = palaceGame([general(true), victim, enemyRook(4, 5)]);
+    const moves = legalMoves(enemyRook(4, 5), state);
+    expect(has(moves, 4, 8)).toBe(false); // 궁성 안 아군을 잡으러 진입 ✗
+  });
+
+  it('플레이어 말의 이동은 결계 영향 없음(자기 궁성)', () => {
+    const g = general(true);
+    const moves = legalMoves(g, palaceGame([g]));
+    expect(moves.length).toBeGreaterThan(0); // 장은 자기 궁성 안에서 정상 이동
+  });
+
+  it('wardedCellsAgainst: 활성 시 궁성 9칸, 비활성 시 빈 배열', () => {
+    expect(wardedCellsAgainst('enemy', palaceGame([general(true)]))).toHaveLength(9);
+    expect(wardedCellsAgainst('enemy', palaceGame([general(false)]))).toHaveLength(0);
+    expect(wardedCellsAgainst('player', palaceGame([general(true)]))).toHaveLength(0); // 내 궁성은 안 막음
+  });
+
+  it('AI 체크 판정: 궁성 안 왕은 결계로 위협받지 않음', () => {
+    // 장을 궁성 칸(4,8)에 두고 적 룩이 겨냥 → 결계면 사정권 아님.
+    const g = withBuff({ ...general(true), at: { col: 4, row: 8 } }, 'palaceWard');
+    const state = palaceGame([g, enemyRook(4, 5)]);
+    expect(isAttackedBy({ col: 4, row: 8 }, 'enemy', state)).toBe(false);
+    const plain = palaceGame([{ ...g, buffs: undefined }, enemyRook(4, 5)]);
+    expect(isAttackedBy({ col: 4, row: 8 }, 'enemy', plain)).toBe(true);
+  });
+
+  it('하강도 결계 칸으로 들어오지 못한다(그대로 멈춤)', () => {
+    // 궁성 rows 7..9. 적이 (4,6)에서 하강하면 (4,7)=궁성 → 결계면 멈춤.
+    const enemy: Piece = { ...enemyRook(4, 6), kind: 'pawn' };
+    const warded = applyDescent(palaceGame([general(true), enemy]));
+    expect(warded.state.pieces.find((p) => p.id === 'r')?.at).toEqual({ col: 4, row: 6 }); // 안 내려옴
+    const open = applyDescent(palaceGame([general(false), { ...enemy }]));
+    expect(open.state.pieces.find((p) => p.id === 'r')?.at).toEqual({ col: 4, row: 7 }); // 정상 하강
+  });
+
+  it('결계는 하강의 맨아래 도달(피해)보다 우선 — 궁성 바닥칸이면 피해 없음', () => {
+    // (4,8)에서 하강하면 (4,9)=궁성 바닥칸(rows-1). 결계면 멈춤·HP 유지.
+    const enemy: Piece = { ...enemyRook(4, 8), kind: 'pawn' };
+    const warded = applyDescent(palaceGame([general(true), enemy]));
+    expect(warded.state.hp).toBe(warded.state.maxHp); // 피해 없음
+    expect(warded.state.pieces.some((p) => p.id === 'r')).toBe(true); // 제거 안 됨
+    const open = applyDescent(palaceGame([general(false), { ...enemy }]));
+    expect(open.state.hp).toBe(open.state.maxHp - open.state.damagePerReach); // 바닥 도달 피해
   });
 });

@@ -1,6 +1,7 @@
 // 보드 모델 + 모든 MoveGen이 공유하는 질의 헬퍼 + 궁성 구성.
 // 설계 근거: doc/architecture.md "이동 생성 → 보드 헬퍼", "궁성(palace) 모델"
 
+import { hasBuff } from './buffs';
 import type { Board, Coord, GameState, PalaceDef, Piece, Side } from './types';
 
 export function eq(a: Coord, b: Coord): boolean {
@@ -68,6 +69,21 @@ export function makePalace(side: Side, cols: number, rows: number): PalaceDef {
 export function inPalace(c: Coord, side: Side, b: Board): boolean {
   const pal = b.palaces.find((p) => p.side === side);
   return pal !== undefined && pal.cells.some((x) => eq(x, c));
+}
+
+/**
+ * #6 궁성 결계: side(이동하는 말 입장)에게 막힌 상대 궁성 칸들.
+ * 결계는 궁성 소유자의 general이 palaceWard 버프를 가질 때 활성 — 상대 말은 그 궁성에 못 들어감.
+ * 보통 빈 배열(결계 없음). 결과로 legalMoves가 해당 칸을 필터링한다.
+ */
+export function wardedCellsAgainst(side: Side, state: GameState): Coord[] {
+  const out: Coord[] = [];
+  for (const pal of state.board.palaces) {
+    if (pal.side === side) continue; // 내 궁성은 막지 않음
+    const owner = state.pieces.find((p) => p.side === pal.side && p.kind === 'general');
+    if (owner !== undefined && hasBuff(owner, 'palaceWard')) out.push(...pal.cells);
+  }
+  return out;
 }
 
 /** 좌표를 지나는 궁성 대각선 라인들(모든 궁성에 대해). */

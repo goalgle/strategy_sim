@@ -1,5 +1,6 @@
 // 일제 하강 해소: 적 말 전체 row+1. "맨 아래 도달 우선" + "하강 충돌은 위쪽 승".
 // 설계 근거: doc/architecture.md "tick 파이프라인 → 하강 해소".
+import { wardedCellsAgainst } from './board';
 import type { GameEvent } from './events';
 import type { GameState, GameStatus, OverReason, Piece } from './types';
 
@@ -7,6 +8,11 @@ export function applyDescent(state: GameState): { state: GameState; events: Game
   const events: GameEvent[] = [];
   const rows = state.board.rows;
   const damage = state.damagePerReach;
+
+  // #6 궁성 결계: 결계 칸으로는 하강 진입도 불가(그대로 멈춤). 보통 빈 배열.
+  const warded = wardedCellsAgainst('enemy', state);
+  const isWarded = (col: number, row: number): boolean =>
+    warded.some((w) => w.col === col && w.row === row);
 
   // 작업 사본(위치 변경·제거를 안전하게)
   let pieces: Piece[] = state.pieces.map((p) => ({ ...p, at: { ...p.at } }));
@@ -31,6 +37,9 @@ export function applyDescent(state: GameState): { state: GameState; events: Game
 
     const col = e.at.col;
     const newRow = e.at.row + 1;
+
+    // 0) 궁성 결계: 진입 차단 칸이면 하강하지 않고 그대로(맨 아래 도달보다 우선).
+    if (isWarded(col, newRow)) continue;
 
     // 1) 맨 아래 칸 도달 — 최우선(잡기보다 먼저). 적 제거 + HP 감소.
     if (newRow >= rows - 1) {

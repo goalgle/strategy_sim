@@ -1,7 +1,7 @@
 // PixiJS 보드 렌더러. 코어 GameState를 그린다(상태가 진실, 렌더는 시각 표현).
 // 그리드↔교차 토글은 바닥 라인만 바꾼다(말 위치는 동일 좌표).
 import { Application, Container, Graphics, Text } from 'pixi.js';
-import { eq } from '../core/board';
+import { eq, wardedCellsAgainst } from '../core/board';
 import { BUFFS } from '../core/buffs';
 import { missionLabel } from '../core/missions';
 import { beatPhase01 } from '../core/rhythm';
@@ -242,6 +242,12 @@ export class BoardView {
       }
     }
     g.stroke({ width: 1, color: COL.palace, alpha: 0.6 });
+
+    // #6 궁성 결계 활성 시 — 막힌 궁성 칸을 보라색으로 옅게 채워 표시.
+    for (const cell of wardedCellsAgainst('enemy', state)) {
+      const { x, y } = this.center(cell.col, cell.row);
+      g.rect(x - CELL / 2, y - CELL / 2, CELL, CELL).fill({ color: COL.palace, alpha: 0.18 });
+    }
   }
 
   private drawHighlights(state: GameState): void {
