@@ -10,8 +10,9 @@ import {
   palaceLinesThrough,
   pieceAt,
 } from '../board';
+import { hasBuff } from '../buffs';
 import type { Coord, GameState, MoveGen, Piece } from '../types';
-import { ORTHO, ray, step, type Dir } from './common';
+import { KNIGHT_JUMPS, ORTHO, ray, step, type Dir } from './common';
 
 // ── 차(chariot): 룩 레이 + 궁성 대각선 슬라이드 ──────────
 export const chariot: MoveGen = (p, s) => {
@@ -96,8 +97,9 @@ function cannonPalaceDiagonal(p: Piece, s: GameState): Coord[] {
   return out;
 }
 
-// ── 마(horse): 직교 1보(멱) + 바깥 대각 1보 ──────────────
+// ── 마(horse): 직교 1보(멱) + 바깥 대각 1보. (버프 horseLeap) 멱 무시 나이트 점프 ──
 export const horse: MoveGen = (p, s) => {
+  if (hasBuff(p, 'horseLeap')) return horseLeap(p, s);
   const out: Coord[] = [];
   for (const o of ORTHO) {
     const leg = step(p.at, o);
@@ -109,6 +111,16 @@ export const horse: MoveGen = (p, s) => {
   }
   return out;
 };
+
+/** 멱을 무시하고 8방 L자 점프(나이트). 도착이 보드 안·비아군이면 가능. */
+function horseLeap(p: Piece, s: GameState): Coord[] {
+  const out: Coord[] = [];
+  for (const d of KNIGHT_JUMPS) {
+    const dest = step(p.at, d);
+    if (inBounds(dest, s.board) && !isAllyOf(dest, p.side, s)) out.push(dest);
+  }
+  return out;
+}
 
 // ── 상(elephant): 직교 1보 + 대각 2보, 멱 2지점 ──────────
 export const elephant: MoveGen = (p, s) => {
@@ -162,8 +174,37 @@ const palaceStep: MoveGen = (p, s) => {
   return dedupeCoords(out);
 };
 
-export const guard: MoveGen = palaceStep;
 export const general: MoveGen = palaceStep;
+
+// 사(guard): 기본 궁성 1보 + (버프 guardStride) 궁성 안 직선 2보 ──
+export const guard: MoveGen = (p, s) => {
+  const out = palaceStep(p, s);
+  if (hasBuff(p, 'guardStride')) out.push(...guardStride(p, s));
+  return dedupeCoords(out);
+};
+
+/** 궁성 안 직선 2칸: 직교 또는 X 대각 라인을 따라, 중간칸이 비어 있고 도착이 궁성·비아군일 때. */
+function guardStride(p: Piece, s: GameState): Coord[] {
+  const pal = s.board.palaces.find((x) => x.side === p.side);
+  if (pal === undefined) return [];
+  const inPal = (c: Coord) => pal.cells.some((x) => eq(x, c));
+  const out: Coord[] = [];
+  // 직교 2보
+  for (const o of ORTHO) {
+    const mid = step(p.at, o);
+    const dest = step(mid, o);
+    if (inPal(mid) && isEmpty(mid, s) && inPal(dest) && !isAllyOf(dest, p.side, s)) out.push(dest);
+  }
+  // 대각 라인 2보(귀퉁이 ↔ 귀퉁이, 중앙 경유)
+  for (const line of pal.diagonalLines) {
+    const idx = line.findIndex((c) => eq(c, p.at));
+    if (idx !== 0 && idx !== 2) continue;
+    const mid = line[1]!;
+    const dest = line[idx === 0 ? 2 : 0]!;
+    if (isEmpty(mid, s) && !isAllyOf(dest, p.side, s)) out.push(dest);
+  }
+  return out;
+}
 
 // ── 졸(soldier): 전진 1 또는 옆 1(후진 없음) + 궁성 대각 전진 ──
 export const soldier: MoveGen = (p, s) => {

@@ -30,6 +30,19 @@ export type PieceKind =
   | 'guard'
   | 'soldier';
 
+/**
+ * 보상카드 버프 — 말 강화. 개별 부여·개별 테스트.
+ * 이동 생성 확장: guardStride·horseLeap·cannonCreep·palaceWard.
+ * 이동 해소 변경: elephantTrample·chariotPierce.
+ */
+export type BuffKind =
+  | 'guardStride' // #1 사: 궁성 안 2칸 직선 이동
+  | 'horseLeap' // #2 마: 멱 무시(나이트 점프)
+  | 'elephantTrample' // #3 상: 경로상 적 전부 밀어 잡기
+  | 'cannonCreep' // #4 포: 인접 1칸 평이동(잡기 불가)
+  | 'chariotPierce' // #5 차: 가로막은 아군1 희생해 적 관통 잡기
+  | 'palaceWard'; // #6 궁성: 적 말 진입 차단
+
 export interface Piece {
   /** 안정 식별자(애니메이션·리플레이 추적용) */
   id: string;
@@ -39,6 +52,8 @@ export interface Piece {
   at: Coord;
   /** king/general → 잡히면 즉사(패배 ②) */
   isRoyal: boolean;
+  /** 보상카드 버프(없으면 기본 규칙). */
+  buffs?: BuffKind[];
 }
 
 /**

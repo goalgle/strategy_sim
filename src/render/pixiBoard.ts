@@ -2,6 +2,7 @@
 // 그리드↔교차 토글은 바닥 라인만 바꾼다(말 위치는 동일 좌표).
 import { Application, Container, Graphics, Text } from 'pixi.js';
 import { eq } from '../core/board';
+import { BUFFS } from '../core/buffs';
 import { missionLabel } from '../core/missions';
 import { beatPhase01 } from '../core/rhythm';
 import type { Coord, GameState, PieceKind, RhythmJudge } from '../core/types';
@@ -334,6 +335,23 @@ export class BoardView {
       t.x = x;
       t.y = y;
       this.piecesLayer.addChild(t);
+
+      // 보상카드 배지(우상단). 첫 버프 글자 + 금색 원.
+      if (p.buffs && p.buffs.length > 0) {
+        const bx = x + CELL * 0.28;
+        const by = y - CELL * 0.28;
+        const bg = new Graphics();
+        bg.circle(bx, by, CELL * 0.17).fill(0xffd166).stroke({ width: 1.5, color: 0x0b0e1a });
+        this.piecesLayer.addChild(bg);
+        const bt = new Text({
+          text: BUFFS[p.buffs[0]!].badge,
+          style: { fill: 0x0b0e1a, fontSize: 13, fontWeight: 'bold', fontFamily: 'sans-serif' },
+        });
+        bt.anchor.set(0.5);
+        bt.x = bx;
+        bt.y = by;
+        this.piecesLayer.addChild(bt);
+      }
     }
   }
 

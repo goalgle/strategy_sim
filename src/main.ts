@@ -16,6 +16,7 @@ import {
   ABILITY_PUSH_COST_HP,
   STEP_MS,
 } from './core/constants';
+import { parseBuffs } from './core/buffs';
 import { missionLabel } from './core/missions';
 import { legalMoves } from './core/pieces/registry';
 import { applyMove } from './core/rules';
@@ -179,6 +180,8 @@ async function startGame(level: DifficultyLevel): Promise<void> {
   const diff = DIFFICULTIES[level];
   const aiThinkMs = diff.ai.thinkMs;
 
+  // 보상카드 테스트용 토글: ?buff=guardStride 처럼 개별 부여(리플레이 init에도 기록).
+  const playerBuffs = parseBuffs(new URLSearchParams(location.search).get('buff'));
   const initConfig: StandardOptions = {
     gap: 6,
     capacityMs: diff.hourglassCapacityMs,
@@ -187,6 +190,7 @@ async function startGame(level: DifficultyLevel): Promise<void> {
     perfectMs: diff.rhythm.perfectMs,
     goodMs: diff.rhythm.goodMs,
     badMs: diff.rhythm.badMs,
+    playerBuffs,
   };
   let state: GameState = createStandardGame(initConfig);
   const recorder = new Recorder();

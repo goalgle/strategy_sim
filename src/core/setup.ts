@@ -1,6 +1,7 @@
 // 초기 배치 — 표준 진형(하단 장기 / 상단 체스 2줄) + 빈 보드/배치 헬퍼(테스트·이후 단계용).
 // 설계 근거: doc/concept.md "초기 배치 / 진형", doc/architecture.md "스크립트 → setup".
 import { makePalace } from './board';
+import { grantPlayerBuffs } from './buffs';
 import {
   DAMAGE_PER_REACH,
   DEFAULT_BPM,
@@ -12,7 +13,7 @@ import {
   RHYTHM_PERFECT_MS,
 } from './constants';
 import { makeRng } from './rng';
-import type { Board, Family, GameState, Piece, PieceKind, Side } from './types';
+import type { BuffKind, Board, Family, GameState, Piece, PieceKind, Side } from './types';
 
 const CHESS_KINDS = new Set<PieceKind>([
   'king',
@@ -121,6 +122,8 @@ export interface StandardOptions extends GameInit {
   gap?: number;
   /** 보드 열 수(기본 9 = 장기판). */
   cols?: number;
+  /** 보상카드 버프(플레이어 말의 해당 종류에 부여). 리플레이 init에 포함되어 결정론 유지. */
+  playerBuffs?: BuffKind[];
 }
 
 /**
@@ -176,5 +179,6 @@ export function createStandardGame(opts: StandardOptions = {}): GameState {
   chessBack.forEach((kind, col) => placer.place(kind, 'enemy', col, 0));
   for (let col = 0; col < 8; col++) placer.place('pawn', 'enemy', col, 1);
 
-  return { ...base, pieces: placer.build() };
+  const pieces = grantPlayerBuffs(placer.build(), opts.playerBuffs ?? []);
+  return { ...base, pieces };
 }

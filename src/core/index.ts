@@ -9,6 +9,7 @@ export * from './rhythm';
 export * from './scoring';
 export * from './missions';
 export * from './combo';
+export * from './buffs';
 export * from './events';
 export * from './descent';
 export * from './spawn';
