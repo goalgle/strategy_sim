@@ -74,8 +74,8 @@ function handleEvents(view: BoardView, events: ReturnType<typeof tick>['events']
       case 'auto3': sfx.auto(); break;
       case 'pushed': sfx.push(); break;
       case 'forced': sfx.force(); break;
-      case 'rewardOffered': sfx.mission(); view.flashBanner('🎁 보상 카드 도착!', 0xffd24a); break;
-      case 'rewardPicked': sfx.ticket(); break;
+      case 'rewardOffered': sfx.rewardOffer(); view.flashBanner('🎁 보상 카드 도착!', 0xffd24a); break;
+      case 'rewardPicked': sfx.rewardPick(); break;
       case 'gameOver': sfx.gameOver(); break;
       default: break;
     }

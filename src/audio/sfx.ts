@@ -103,8 +103,13 @@ export class SoundFx {
   }
 
   private tone(freq: number, durMs: number, type: OscillatorType, vol: number, slideTo?: number): void {
+    this.toneAt(freq, 0, durMs, type, vol, slideTo);
+  }
+
+  /** tone과 같되 currentTime + startMs에서 시작 — 아르페지오(시간차) 연주용. */
+  private toneAt(freq: number, startMs: number, durMs: number, type: OscillatorType, vol: number, slideTo?: number): void {
     if (!this.ctx || !this.master || !this.enabled) return;
-    const t0 = this.ctx.currentTime;
+    const t0 = this.ctx.currentTime + startMs / 1000;
     const dur = durMs / 1000;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
@@ -172,6 +177,18 @@ export class SoundFx {
   }
   force(): void {
     this.tone(520, 120, 'triangle', 0.6, 360); // 끌어당김
+  }
+  rewardOffer(): void {
+    // 보상 등장 — 밝은 상승 아르페지오(C-E-G-C) 팡파르.
+    this.toneAt(523, 0, 120, 'triangle', 0.6); // C5
+    this.toneAt(659, 90, 120, 'triangle', 0.6); // E5
+    this.toneAt(784, 180, 120, 'triangle', 0.65); // G5
+    this.toneAt(1047, 270, 240, 'triangle', 0.7); // C6
+  }
+  rewardPick(): void {
+    // 선택 확정 — 짧은 상승 2음 + 슬라이드 반짝.
+    this.toneAt(784, 0, 90, 'sine', 0.6); // G5
+    this.toneAt(1047, 70, 180, 'sine', 0.7, 1568); // C6 → 슬라이드 업
   }
   judge(j: RhythmJudge): void {
     const freq: Record<RhythmJudge, number> = { perfect: 1320, good: 990, bad: 620, miss: 200 };

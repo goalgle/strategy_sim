@@ -19,8 +19,8 @@ function lose(g: GameState, id: string): GameState {
 }
 
 describe('보상 임계(rewardThreshold)', () => {
-  it('점점 커진다: 50, 150, 300, 500', () => {
-    expect([0, 1, 2, 3].map(rewardThreshold)).toEqual([50, 150, 300, 500]);
+  it('점점 커진다: 30, 90, 180, 300', () => {
+    expect([0, 1, 2, 3].map(rewardThreshold)).toEqual([30, 90, 180, 300]);
   });
 });
 
@@ -85,7 +85,7 @@ describe('보상 제시(maybeOfferReward)', () => {
   });
 
   it('임계 미달이면 제시 안 함', () => {
-    expect(maybeOfferReward({ ...createStandardGame({ seed: 1 }), score: 49 }).state.reward).toBeUndefined();
+    expect(maybeOfferReward({ ...createStandardGame({ seed: 1 }), score: 29 }).state.reward).toBeUndefined();
   });
 
   it('줄 카드가 하나도 없으면(전부 보유 + 잃은 말 없음) 제시 안 함', () => {

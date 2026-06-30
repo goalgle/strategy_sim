@@ -28,11 +28,11 @@ const KIND_KR: Record<PieceKind, string> = {
 
 /**
  * rewardCount장 지급한 뒤 '다음' 보상의 누적 점수 임계 — 점점 커진다.
- * 25·n·(n+1): 50, 150, 300, 500, 750, 1050 ...
+ * 15·n·(n+1): 30, 90, 180, 300, 450, 630 ...
  */
 export function rewardThreshold(rewardCount: number): number {
   const n = rewardCount + 1;
-  return 25 * n * (n + 1);
+  return 15 * n * (n + 1);
 }
 
 /** 플레이어가 이미 보유한 버프 종류. */
